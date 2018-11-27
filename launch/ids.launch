@@ -1,0 +1,48 @@
+<launch>
+	<arg name="left_id"		default="1" />
+	<arg name="right_id"		default="2" />
+	<arg name="ns" default="camera" />
+	
+	<!-- LAUNCH IDS CAMERA -->
+  <include file="$(find ueye)/launch/nodelets.launch" >
+  	<arg name="device_id"		value="$(arg left_id)" />
+		<arg name="namespace" value="$(arg ns)" />
+  </include>
+  
+  <!--
+  <include file="$(find ueye)/launch/nodelets.launch" >
+  	<arg name="device_id"		value="$(arg left_id)" />
+		<arg name="namespace" value="$(arg ns)" />
+  </include>
+  -->
+  
+  <!-- LAUNCH IMAGE RECTIFYING -->
+  <arg name="ns_left" value="$(arg ns)$(arg left_id)" />
+  <node pkg="image_proc" type="image_proc" name="image_proc" ns="$(arg ns_left)" />
+  <param name="/$(arg ns_left)/image_proc_rectify_mono/interpolation" value="0" />
+  <param name="/$(arg ns_left)/image_proc_rectify_color/interpolation" value="0" />
+  <!--
+  <arg name="ns_right" value="$(arg ns)$(arg right_id)" />
+  <node pkg="image_proc" type="image_proc" name="image_proc" ns="$(arg ns_right)" />
+  <param name="/$(arg ns_right)/image_proc_rectify_mono/interpolation" value="0" />
+  <param name="/$(arg ns_right)/image_proc_rectify_color/interpolation" value="0" />
+  -->
+  
+  <!-- SAVE THE IMAGES -->
+  <node pkg="helper_functions" type="helper_functions" name="image_saver" output="screen" >
+  	<param name="subscribe_path" value="/$(arg ns_left)/image_rect"/>
+  </node>
+  <!---->
+  
+  <!-- !!!!!RECORDING!!!!! add second line before split and size when launching with the rosbag -->
+  <!-- Specify a path by adding argument "-o /home/xxxxxxxxx/data/" for example
+  		 the directory needs to exist and then your files will have this prefix -->
+	<!--
+	<arg name="savepath" default="$(find helper_functions)/../../../ids_data/data" />
+	<arg name="camera_topic" default="/image_raw" />
+	 -->
+	 <!-- 
+	<node pkg="rosbag" type="record" name="rosbag_record_camera" args="-split -size=4096 -o $(arg savepath) -e $(arg camera_topic)" output="screen" />
+	-->
+	
+</launch>
