@@ -994,10 +994,15 @@ void Camera::captureThread(CamCaptureCB callback)
   imageDataStruct imgData;
   imgData.size = size;
   int frameCount = 0;
+  UEYEIMAGEINFO ImageInfo;
   
   while (!stop_capture_) {
     // Wait for image. Timeout after 2*FramePeriod = (2000ms/FrameRate)
     if (is_WaitEvent(cam_, IS_SET_EVENT_FRAME, (int)(2000 / frame_rate_)) == IS_SUCCESS) {
+      if (is_GetImageInfo( m_hCam, m_lMemoryId, &ImageInfo, sizeof(ImageInfo)) == IS_SUCCESS) {
+        unsigned long long u64TimestampDevice;
+        u64TimestampDevice = ImageInfo.u64TimestampDevice;
+      }
       if (is_GetImageMem(cam_, (void**)&img_mem) == IS_SUCCESS) {
         //memcpy(msg_image->data.data(), frame, size);
         imgData.img_mem = img_mem;
