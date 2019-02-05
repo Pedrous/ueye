@@ -1002,12 +1002,12 @@ void Camera::captureThread(CamCaptureCB callback)
   
   while (!stop_capture_) {
     // Wait for image. Timeout after 2*FramePeriod = (2000ms/FrameRate)
-    if (is_WaitForNextImage(cam_, (int)(2000 / frame_rate_), (char**)&ppcMem, imageID) == IS_SUCCESS) {
-    //if (is_WaitEvent(cam_, IS_SET_EVENT_FRAME, (int)(2000 / frame_rate_)) == IS_SUCCESS) {
-      if (is_GetImageInfo(cam_, *imageID, &ImageInfo, sizeof(ImageInfo)) == IS_SUCCESS)
-        ROS_INFO("success");
-      else
-        ROS_INFO("Failure");
+    //if (is_WaitForNextImage(cam_, (int)(2000 / frame_rate_), (char**)&ppcMem, imageID) == IS_SUCCESS) {
+    if (is_WaitEvent(cam_, IS_SET_EVENT_FRAME, (int)(2000 / frame_rate_)) == IS_SUCCESS) {
+      //if (is_GetImageInfo(cam_, *imageID, &ImageInfo, sizeof(ImageInfo)) == IS_SUCCESS)
+       // ROS_INFO("success");
+     // else
+       // ROS_INFO("Failure");
       if (is_GetImageMem(cam_, (void**)&img_mem) == IS_SUCCESS) {
 				//is_GetImageInfo(cam_, nImageBufferID, &ImageInfo, sizeof(ImageInfo)) == IS_SUCCESS and
         //memcpy(msg_image->data.data(), frame, size);
