@@ -52,8 +52,8 @@ StereoNode::StereoNode(ros::NodeHandle node, ros::NodeHandle priv_nh) :
   r_exposure_ = 0;
   l_exposure_new_ = 0;
   r_exposure_new_ = 0;
-  l_firstPPScontrolValueNeeded_ = true;
-  r_firstPPScontrolValueNeeded_ = true;
+  //l_firstPPScontrolValueNeeded_ = true;
+  //r_firstPPScontrolValueNeeded_ = true;
   leftPpsCount = 0;
   rightPpsCount = 0;
   timeout = boost::posix_time::milliseconds(100);
@@ -1086,6 +1086,7 @@ void StereoNode::startCamera()
 {
   if (running_ || !configured_)
     return;
+  // These are callback functions that are not used at the moment
   l_cam_.startVideoCapture(boost::bind(&StereoNode::publishImageL, this, _1, _2, _3, _4, _5));
   r_cam_.startVideoCapture(boost::bind(&StereoNode::publishImageR, this, _1, _2, _3, _4, _5));
   stop_publish_ = false;

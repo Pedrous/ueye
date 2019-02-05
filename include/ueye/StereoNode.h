@@ -114,8 +114,8 @@ private:
   ueye::extras left_extras_;
   ueye::extras right_extras_;
   bool publish_extras_;
-  bool l_firstPPScontrolValueNeeded_;
-  bool r_firstPPScontrolValueNeeded_;
+  //bool l_firstPPScontrolValueNeeded_;
+  //bool r_firstPPScontrolValueNeeded_;
   double exposure_time_;
   int leftPpsCount;
   int rightPpsCount;

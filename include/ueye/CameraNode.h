@@ -67,6 +67,8 @@
 #include "ueye/exposure.h"
 #include <rosbag/bag.h>
 #include <unistd.h>
+#include "ueye/ppscontrol.h"
+#include "ueye/extras.h"
 
 namespace ueye
 {
@@ -93,8 +95,10 @@ private:
   bool setCameraInfo(sensor_msgs::SetCameraInfo::Request& req, sensor_msgs::SetCameraInfo::Response& rsp);
 
   void loadIntrinsics();
-  sensor_msgs::ImagePtr processFrame(const char *frame, size_t size, sensor_msgs::CameraInfoPtr &info);
+  //sensor_msgs::ImagePtr processFrame(const char *frame, size_t size, sensor_msgs::CameraInfoPtr &info);
+  sensor_msgs::ImagePtr processFrame(const char *frame, size_t size, const Camera &cam, sensor_msgs::CameraInfoPtr &info, sensor_msgs::CameraInfo &msg_info);
   void publishImage(const char *frame, size_t size, ros::Time stamp, int pps, int exposure);
+  void publishImagefromList();
   void startCamera();
   void stopCamera();
   void closeCamera();
@@ -118,7 +122,7 @@ private:
   bool force_streaming_;
   std::string config_path_;
   int trigger_mode_;
-  double exposure_;
+  //double exposure_;
   double exp_increment_;
   ueye::exposure exposure_calib_;
   ueye::exposure exposure_calib_new_;
@@ -129,11 +133,20 @@ private:
   IS_RECT aoi_;
   IS_RECT brightness_aoi_;
   IS_RECT visualize_brightness_aoi_;
+  double exposure_;
+  double exposure_new_;
+  ueye::extras extras_;
+  bool publish_extras_;
+  double exposure_time_;
+  int PpsCount;
+  boost::thread thread_;
+  bool stop_publish_;
 
   // ROS topics
   image_transport::ImageTransport it_;
   image_transport::CameraPublisher pub_stream_;
   ros::Publisher pub_exposure_;
+  ros::Publisher pub_extras_;
   ros::ServiceServer srv_cam_info_;
   
   // For exposure recording

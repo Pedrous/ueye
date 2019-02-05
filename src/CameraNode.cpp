@@ -51,6 +51,10 @@ CameraNode::CameraNode(ros::NodeHandle &node, ros::NodeHandle &priv_nh) :
   auto_gain_ = false;
   trigger_mode_ = zoom_ = -1;
   exposure_calib_.exp_time = 0.0;
+  //stamp_ ros::Time(0);
+  exposure_ = 0;
+  exposure_new_ = 0;
+  PpsCount = 0;
 
   // Check for a valid uEye installation and supported version
   const char *version;
@@ -105,8 +109,11 @@ CameraNode::CameraNode(ros::NodeHandle &node, ros::NodeHandle &priv_nh) :
   // Special publisher for images to support compression
   pub_stream_ = it_.advertiseCamera("image_raw", 0);
   
+  // New added publishers by Petri
   // Special publisher for camera exposure
   pub_exposure_ = node.advertise<ueye::exposure>("exposure", 0);
+  // Special publisher for camera exposure
+  pub_extras_ = node.advertise<ueye::extras>("extras", 0);
 
   // Set up Timer
   timer_ = node.createTimer(ros::Duration(1 / 5.0), &CameraNode::timerCallback, this);
@@ -408,7 +415,7 @@ void CameraNode::reconfig(monoConfig &config, uint32_t level)
   // Exposure time
   if (!config.auto_exposure) {
     cam_.setExposure(&config.exposure_time);
-    exposure_ = config.exposure_time;
+    exposure_time_ = config.exposure_time;
   }
 
   // Zoom
@@ -555,7 +562,7 @@ void CameraNode::loadIntrinsics()
 }
 
 // Add properties to image message
-sensor_msgs::ImagePtr CameraNode::processFrame(const char *frame, size_t size, sensor_msgs::CameraInfoPtr &info)
+/*sensor_msgs::ImagePtr CameraNode::processFrame(const char *frame, size_t size, sensor_msgs::CameraInfoPtr &info)
 {
   //std::cout << "processFrame Entered" << std::endl;
   msg_camera_info_.header.stamp = ros::Time::now();
@@ -578,6 +585,43 @@ sensor_msgs::ImagePtr CameraNode::processFrame(const char *frame, size_t size, s
   memcpy(msg_image->data.data(), frame, size);
 
   sensor_msgs::CameraInfoPtr msg(new sensor_msgs::CameraInfo(msg_camera_info_));
+  info = msg;
+  
+  return msg_image;
+}*/
+
+sensor_msgs::ImagePtr CameraNode::processFrame(const char *frame, size_t size, const Camera &cam, sensor_msgs::CameraInfoPtr &info, sensor_msgs::CameraInfo &msg_info)
+{
+  if (binning_)
+  {
+    msg_info.height = cam.getHeight() / 2;
+    msg_info.width = cam.getWidth() / 2;
+    msg_info.roi.width = cam.getROIWidth() / 2;
+    msg_info.roi.height = cam.getROIHeight() / 2;
+    msg_info.roi.x_offset = cam.getROI_X() / 2;
+    msg_info.roi.y_offset = cam.getROI_Y() / 2;
+  }
+  else
+  {
+    msg_info.height = cam.getHeight();
+    msg_info.width = cam.getWidth();
+    msg_info.roi.width = cam.getROIWidth();
+    msg_info.roi.height = cam.getROIHeight();
+    msg_info.roi.x_offset = cam.getROI_X();
+    msg_info.roi.y_offset = cam.getROI_Y();
+  }
+
+  sensor_msgs::ImagePtr msg_image(new sensor_msgs::Image());
+  msg_image->header = msg_info.header;
+  msg_image->height = cam.getROIHeight();
+  msg_image->width = cam.getROIWidth();
+  msg_image->encoding = Camera::colorModeToString(cam.getColorMode());
+  msg_image->is_bigendian = false;
+  msg_image->step = size / msg_image->height;
+  //ROS_INFO("Step: %d, size: %d, height: %d", msg_image->step, size, msg_image->height);
+  msg_image->data.resize(size);
+  memcpy(msg_image->data.data(), frame, size);
+  sensor_msgs::CameraInfoPtr msg(new sensor_msgs::CameraInfo(msg_info));
   info = msg;
   
   return msg_image;
@@ -655,7 +699,7 @@ void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, i
   if (cal_exp_)
     CalExp();
   sensor_msgs::CameraInfoPtr info;
-  sensor_msgs::ImagePtr img = processFrame(frame, size, info);
+  sensor_msgs::ImagePtr img = processFrame(frame, size, cam_, info, msg_camera_info_);
   if (visualize_)
     DrawBrightnessAOI(img);
   if (binning_)
@@ -678,11 +722,67 @@ void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, i
   }
 }
 
+void CameraNode::publishImagefromList()
+{
+  char *frame;
+  size_t size;
+  ros::Time stamp;
+  int pps;
+  double exposure;
+  int count;
+  
+  while (!stop_publish_) {
+    if (cam_.getImageDataFromList(&frame, size, stamp, pps, exposure, count))
+    {
+      
+      if (publish_extras_)
+      {
+        // Publish ppscontrol and exposure values
+        extras_.pps = pps;//r_cam_.getGPIOConfiguration();
+        PpsCount++;
+        if (extras_.pps == 1)
+        {
+          //ROS_INFO("Right Camera time, %f", r_stamp_.toSec());
+          if (PpsCount != 100)
+            ROS_INFO("Camera frequency: %d Hz", PpsCount);
+          PpsCount = 0;
+        }
+        extras_.exp_time = exposure_;
+        if (auto_exposure_)
+          exposure_ = exposure;
+        else
+          exposure_ = exposure_time_;
+           
+        extras_.header.stamp = msg_camera_info_.header.stamp;
+        pub_extras_.publish(extras_);
+      }
+      
+      sensor_msgs::CameraInfoPtr info;
+      sensor_msgs::ImagePtr img = processFrame(frame, size, cam_, info, msg_camera_info_);
+      
+      if (binning_)
+        BinImg(img);
+      if (visualize_)
+        DrawBrightnessAOI(img);
+      
+      // Publish Image
+      pub_stream_.publish(img, info);
+      cam_.removeFromList();
+    }
+    usleep(1000);
+  }
+  //ROS_INFO("Right loop ended, data_ready: %d, %d", r_stamp_ready, r_img_info_ready);
+}
+
 void CameraNode::startCamera()
 {
   if (running_ || !configured_)
     return;
   cam_.startVideoCapture(boost::bind(&CameraNode::publishImage, this, _1, _2, _3, _4, _5));
+  stop_publish_ = false;
+  //stamp_ready = false;
+  //img_info_ready = false;
+  thread_ = boost::thread(&CameraNode::publishImagefromList, this);
   ROS_INFO("Started video stream.");
   running_ = true;
 }
@@ -691,7 +791,10 @@ void CameraNode::stopCamera()
 {
   if (!running_)
     return;
+  ROS_INFO("Stopping video stream.");
+  stop_publish_ = true;thread_.join();
   cam_.stopVideoCapture();
+  PpsCount = 0;
   ROS_INFO("Stopped video stream.");
   running_ = false;
 }
