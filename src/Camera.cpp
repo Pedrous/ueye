@@ -36,6 +36,18 @@
 #include <iostream>
 #include "ros/ros.h"
 
+#include <cstring>
+#include <string.h>
+#include <iostream>
+#include <typeinfo>
+#include <bitset>
+#include <iomanip>
+#include <ctime>
+#include <time.h>
+#include <stdlib.h>
+
+#include <chrono>
+
 // Check expected uEye SDK version in ueye.h for supported architectures
 #if defined(__i386) || defined(__i386__) || defined(_M_IX86)
   #define EXPECTED_VERSION_MAJOR 4
@@ -103,6 +115,7 @@ void Camera::initPrivateVariables()
   aoi_.s32Height = 1216;
   aoi_.s32X = 0;
   aoi_.s32Y = 0;
+  trigger = false;
   
   m_psMultiAOIs->nNumberOfAOIs = 0;
 }
@@ -669,6 +682,7 @@ bool Camera::setTriggerMode(TriggerMode mode)
 {
   if ((mode == 0) || (mode & getSupportedTriggers())) {
     if (is_SetExternalTrigger(cam_, mode) == IS_SUCCESS) {
+      trigger = true;
       return true;
     }
   }
@@ -994,32 +1008,96 @@ void Camera::captureThread(CamCaptureCB callback)
   imageDataStruct imgData;
   imgData.size = size;
   int frameCount = 0;
-  int *imageID;
-  char *ppcMem;
+  int imageID = 0;
+  char *pcMem = NULL;
   UEYEIMAGEINFO ImageInfo;
   unsigned long long u64TimestampDevice;
   DWORD dwIoStatus;
   
+  char* ppcImgMem;
+  int memID;
+  std::time_t t;
+  putenv("TZ=Europe/Finland");
+  
+  checkError( is_AllocImageMem (cam_, getROIWidth(), getROIHeight(), 1, &ppcImgMem, &memID) );
+  //ROS_INFO("is_AllocImageMem Success");
+  checkError( is_SetImageMem (cam_, ppcImgMem, memID) );
+  //ROS_INFO("is_SetImageMem Success");
+  checkError( is_AddToSequence (cam_, ppcImgMem, memID) );
+  //ROS_INFO("is_AddToSequence Success");
+  checkError( is_InitImageQueue(cam_, 0) );
+  //ROS_INFO("is_InitImageQueue Success");
+    //ROS_INFO("is_InitImageQueue Success, frame rate: %f", frame_rate_);
+  //else
+    //ROS_INFO("is_InitImageQueue Failure");
+  
   while (!stop_capture_) {
     // Wait for image. Timeout after 2*FramePeriod = (2000ms/FrameRate)
-    //if (is_WaitForNextImage(cam_, (int)(2000 / frame_rate_), (char**)&ppcMem, imageID) == IS_SUCCESS) {
-    if (is_WaitEvent(cam_, IS_SET_EVENT_FRAME, (int)(2000 / frame_rate_)) == IS_SUCCESS) {
-      //if (is_GetImageInfo(cam_, *imageID, &ImageInfo, sizeof(ImageInfo)) == IS_SUCCESS)
-       // ROS_INFO("success");
-     // else
-       // ROS_INFO("Failure");
-      if (is_GetImageMem(cam_, (void**)&img_mem) == IS_SUCCESS) {
-				//is_GetImageInfo(cam_, nImageBufferID, &ImageInfo, sizeof(ImageInfo)) == IS_SUCCESS and
-        //memcpy(msg_image->data.data(), frame, size);
-        imgData.img_mem = img_mem;
-        //u64TimestampDevice = ImageInfo.u64TimestampDevice;
-        imgData.stamp = ros::Time::now();
-        imgData.pps = getGPIOConfiguration();
-        imgData.exposure = getExposure();
+    
+    if ( IS_SUCCESS == is_WaitForNextImage(cam_, 1000, &pcMem, &imageID) ) {
+      //ROS_INFO("is_WaitForNextImage Success");
+      imgData.exposure = getExposure();
+      auto now = std::chrono::system_clock::now();
+      auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
+      auto timer = std::chrono::system_clock::to_time_t(now);
+      std::tm bt = *std::localtime(&timer);
+      
+      //std::ostringstream oss;
+
+      //oss << std::put_time(&bt, "%H:%M:%S"); // HH:MM:SS
+      //oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+
+      //std::cout << oss.str() << " " << ms.count() << " " << seconds_since_epoch.count() << std::endl;
+      
+      if ( IS_SUCCESS == is_GetImageInfo(cam_, imageID, &ImageInfo, sizeof(ImageInfo)) ) {
+        /*ROS_INFO("%02d.%02d.%04d, %02d:%02d:%02d:%03d, IO: %d, Buffers: %d/%d, Frame number: %llu, Process time: %d",
+        ImageInfo.TimestampSystem.wDay,
+        ImageInfo.TimestampSystem.wMonth,
+        ImageInfo.TimestampSystem.wYear,
+        ImageInfo.TimestampSystem.wHour,
+        ImageInfo.TimestampSystem.wMinute,
+        ImageInfo.TimestampSystem.wSecond,
+        ImageInfo.TimestampSystem.wMilliseconds,
+        ImageInfo.dwIoStatus,
+        ImageInfo.dwImageBuffersInUse,
+        ImageInfo.dwImageBuffers,
+        ImageInfo.u64FrameNumber,
+        ImageInfo.dwHostProcessTime);*/
         
-        if (ppsLock)
+        if ( bt.tm_sec == ImageInfo.TimestampSystem.wSecond ) { 
+          imgData.stamp = ros::Time(seconds_since_epoch.count(), ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000);
+        }
+        else if ( bt.tm_sec > ImageInfo.TimestampSystem.wSecond ){
+          imgData.stamp = ros::Time(seconds_since_epoch.count() - 1, ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000 );
+        }
+        else {
+          ROS_INFO("Behavior is not possible, arrival time cannot be smaller than trigger time");
+          ROS_INFO("%02d.%02d.%04d, %02d:%02d:%02d:%03d, IO: %d, Buffers: %d/%d, Frame number: %llu, Process time: %d",
+          ImageInfo.TimestampSystem.wDay,
+          ImageInfo.TimestampSystem.wMonth,
+          ImageInfo.TimestampSystem.wYear,
+          ImageInfo.TimestampSystem.wHour,
+          ImageInfo.TimestampSystem.wMinute,
+          ImageInfo.TimestampSystem.wSecond,
+          ImageInfo.TimestampSystem.wMilliseconds,
+          ImageInfo.dwIoStatus,
+          ImageInfo.dwImageBuffersInUse,
+          ImageInfo.dwImageBuffers,
+          ImageInfo.u64FrameNumber,
+          ImageInfo.dwHostProcessTime);
+          ROS_INFO("Local time: %s", asctime (&bt));
+        }
+        
+        //ROS_INFO("%d.%09d", imgData.stamp.sec, imgData.stamp.nsec);
+        
+        imgData.img_mem = pcMem;
+        imgData.imgID = imageID;
+        std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
+        imgData.pps = IoStatus[1];
+        
+        if (trigger && ppsLock)
         {
-          if (getGPIOConfiguration() == 1)
+          if (IoStatus[1] == 1)
           {
             //ROS_INFO("img mem at Camera.cpp %p", img_mem);
             //ROS_INFO("imgData.img_mem at Camera.cpp %p", imgData.img_mem);
@@ -1046,24 +1124,14 @@ void Camera::captureThread(CamCaptureCB callback)
           dataList_.push_back(imgData);
           //ROS_INFO("dataList Size %d", dataList_.size());
         }
-        /*if (ppsLock)
-        {
-          if (getGPIOConfiguration() == 1)
-          {
-            double stamp = ros::Time::now().toSec();
-            ROS_INFO("%f", stamp);
-            ppsLock = false;
-            callback(img_mem, size, ros::Time::now(), getGPIOConfiguration(), getExposure());
-          }
-        }
-        else
-        {
-          callback(img_mem, size, ros::Time::now(), getGPIOConfiguration(), getExposure());
-        }*/
       }
-    }
+    }  
+      
+    //checkError( is_UnlockSeqBuf(cam_, imageID, pcMem) );
+    //ROS_INFO("is_UnlockSeqBuf Success");
   }
 
+  checkError( is_ExitImageQueue(cam_) );
   // Stop video event
   checkError(is_DisableEvent(cam_, IS_SET_EVENT_FRAME));
   checkError(is_StopLiveVideo(cam_, IS_WAIT));
@@ -1102,6 +1170,8 @@ void Camera::clearList()
 
 bool Camera::removeFromList()
 {
+  checkError( is_UnlockSeqBuf(cam_, dataList_[0].imgID, dataList_[0].img_mem) );
+  //ROS_INFO("is_UnlockSeqBuf Success");
   boost::mutex::scoped_lock lock(mutex);
   dataList_.erase(dataList_.begin());
 }
@@ -1128,6 +1198,31 @@ void Camera::restartVideoCapture()
       startVideoCapture(stream_callback_);
     }
   }
+}
+
+std::string Camera::time_in_HH_MM_SS_MMM()
+{
+    using namespace std::chrono;
+
+    // get current time
+    auto now = system_clock::now();
+
+    // get number of milliseconds for the current second
+    // (remainder after division into seconds)
+    auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
+
+    // convert to std::time_t in order to convert to std::tm (broken time)
+    auto timer = system_clock::to_time_t(now);
+
+    // convert to broken time
+    std::tm bt = *std::localtime(&timer);
+
+    std::ostringstream oss;
+
+    oss << std::put_time(&bt, "%H:%M:%S"); // HH:MM:SS
+    oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+
+    return oss.str();
 }
 
 } //namespace ueye

@@ -56,6 +56,7 @@ struct imageDataStruct
   int pps;
   double exposure;
   int count;
+  int imgID;
 };
 
 struct uEyeException : public std::runtime_error
@@ -65,6 +66,21 @@ struct uEyeException : public std::runtime_error
       std::runtime_error(msg), error_code(code)
   {
   }
+};
+
+// memory needed for live display while using DIB
+struct Memory
+{
+    Memory(void)
+        : pcImageMemory(NULL)
+        , lMemoryId(0)
+        , lSequenceId(0)
+    {
+    }
+
+    char* pcImageMemory;
+    INT lMemoryId;
+    INT lSequenceId;
 };
 
 enum uEyeColor
@@ -218,7 +234,9 @@ private:
       if (cam_ != 0) {
         is_GetError(cam_, &err2, &msg);
         if (err2 != IS_SUCCESS) {
+          ROS_INFO("Before, err: %d, err2: %d", err, err2);
           throw ueye::uEyeException(err, msg);
+          ROS_INFO("After");
         }
       } else {
         throw ueye::uEyeException(err, "Camera failed to initialize");
@@ -236,6 +254,8 @@ private:
   void destroyMemoryPool();
   void captureThread(CamCaptureCB callback);
   void restartVideoCapture();
+  INT GetLastMem(char** ppLastMem, INT& lMemoryId, INT& lSequenceId);
+  std::string time_in_HH_MM_SS_MMM();
   
   IS_RECT aoi_;
   IS_RECT brightness_aoi_;
@@ -260,6 +280,7 @@ private:
   SENSORINFO cam_info_;
   unsigned int serial_number_;
   std::vector<imageDataStruct> dataList_;
+  bool trigger;
 
   volatile bool streaming_;
   volatile bool stop_capture_;
