@@ -299,7 +299,7 @@ private:
   boost::mutex mutex;
   
   // Added by me for debugging
-  //UEYEIMAGEINFO PrevImageInfo;
+  UEYEIMAGEINFO PrevImageInfo;
 };
 } //namespace ueye
 

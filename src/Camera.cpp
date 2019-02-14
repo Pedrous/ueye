@@ -784,10 +784,7 @@ int Camera::getGPIOConfiguration()
     if (gpioConfiguration.u32Configuration == IS_GPIO_INPUT)
     {
       // GPIO1 is currently configured as output
-      if (gpioConfiguration.u32State == 1)
-        return 0;
-      else
-        return 1;
+      return gpioConfiguration.u32State;
     }
     else
       return 3;
@@ -1017,7 +1014,7 @@ void Camera::captureThread(CamCaptureCB callback)
   int img_ID = 0;
   UEYEIMAGEINFO ImageInfo;
   UEYE_CAPTURE_STATUS_INFO CaptureStatusInfo;
-  //PrevImageInfo.u64FrameNumber = 0;
+  PrevImageInfo.u64FrameNumber = 0;
   
   // Initialize thread pool service
   boost::asio::io_service ioService;
@@ -1097,6 +1094,8 @@ void Camera::captureThread(CamCaptureCB callback)
 }
 
 void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB callback) {
+  //ROS_INFO("GPIO: %d", getGPIOConfiguration() );
+  //int GPIO = getGPIOConfiguration();
   double exposure = getExposure();
   auto now = std::chrono::system_clock::now();
   
@@ -1109,8 +1108,16 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
   UEYEIMAGEINFO ImageInfo;
   ros::Time stamp;
   
-  //double dblFPS;
-  //is_GetFramesPerSecond (cam_, &dblFPS);
+  /*double dblFPS;
+  is_GetFramesPerSecond (cam_, &dblFPS);
+  
+  UEYE_CAPTURE_STATUS_INFO CaptureStatusInfo;
+  is_CaptureStatus (cam_, IS_CAPTURE_STATUS_INFO_CMD_GET, (void*)&CaptureStatusInfo, sizeof(CaptureStatusInfo));
+  //ROS_INFO("prevFrame: %d, currFrame: %d", PrevImageInfo.u64FrameNumber, ImageInfo.u64FrameNumber);
+  ROS_INFO("Capturestatus Total Errors: %d, No Mem: %d, Frame rate: %f", 
+            CaptureStatusInfo.dwCapStatusCnt_Total,
+            CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_NO_DEST_MEM],
+            dblFPS );*/
   
   if ( IS_SUCCESS == is_GetImageInfo(cam_, img_ID, &ImageInfo, sizeof(ImageInfo)) ) {
     /*ROS_INFO("%02d:%03d, IO: %d, Buffers: %d/%d, Frame number: %llu, Process time: %d, Frame_rate: %f",
@@ -1131,8 +1138,15 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     }
   
     std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
-    callback(img_mem, size, stamp, IoStatus[1], exposure);
+    callback(img_mem, size, stamp, !IoStatus[0], exposure);
     
+    //std::cout << IoStatus << std::endl;
+    
+    if (IoStatus[0] == 0) {
+      if (PrevImageInfo.u64FrameNumber == 0)
+        PrevImageInfo = ImageInfo;
+      ROS_INFO("Serial: %u, Time: %d.%09d Frame: %d, PPS: %d", serial_number_, stamp.sec, stamp.nsec, ImageInfo.u64FrameNumber - PrevImageInfo.u64FrameNumber, (int)IoStatus[0] );
+    }
     /*if (PrevImageInfo.u64FrameNumber && PrevImageInfo.u64FrameNumber != ImageInfo.u64FrameNumber - 1) {
       ROS_INFO("Frame dropped");
       UEYE_CAPTURE_STATUS_INFO CaptureStatusInfo;

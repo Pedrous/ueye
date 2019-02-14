@@ -802,13 +802,13 @@ void StereoNode::publishImageL(const char *frame, size_t size, ros::Time stamp, 
     // Publish ppscontrol and exposure values
     left_extras_.pps = pps; //l_cam_.getGPIOConfiguration();
     leftPpsCount++;
-    if (left_extras_.pps == 1)
+    /*if (left_extras_.pps == 1)
     {
       ROS_INFO("Left Camera time, %f, %f", l_stamp_.toSec(), r_stamp_.toSec());
       if (leftPpsCount != 100)
         ROS_INFO("Left Camera frequency: %d Hz", leftPpsCount);
       leftPpsCount = 0;
-    }
+    }*/
     left_extras_.exp_time = l_exposure_;
     if (auto_exposure_)
       l_exposure_ = exposure; //l_cam_.getExposure();
@@ -854,13 +854,13 @@ void StereoNode::publishImageR(const char *frame, size_t size, ros::Time stamp, 
     // Publish ppscontrol and exposure values
     right_extras_.pps = pps;//r_cam_.getGPIOConfiguration();
     rightPpsCount++;
-    if (right_extras_.pps == 1)
+    /*if (right_extras_.pps == 1)
     {
       ROS_INFO("Right Camera time, %f", r_stamp_.toSec());
       if (rightPpsCount != 100)
         ROS_INFO("Right Camera frequency: %d Hz", rightPpsCount);
       rightPpsCount = 0;
-    }
+    }*/
     right_extras_.exp_time = r_exposure_;
     if (auto_exposure_)
       r_exposure_ = exposure;
