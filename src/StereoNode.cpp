@@ -774,7 +774,7 @@ void StereoNode::BinImg(sensor_msgs::ImagePtr &msg)
 }
 
 // Timestamp and publish the image. Called by the streaming thread.
-void StereoNode::publishImageL(const char *frame, size_t size, ros::Time stamp, int pps, int exposure)
+void StereoNode::publishImageL(const char *frame, size_t size, ros::Time stamp, int pps, double exposure)
 {
   //ros::Time stamp = ros::Time::now();  
   //boost::lock_guard<boost::mutex> lock(mutex_);
@@ -831,7 +831,7 @@ void StereoNode::publishImageL(const char *frame, size_t size, ros::Time stamp, 
   l_pub_stream_.publish(img, info);
   //ROS_INFO("Left Camera GPIO input: %d", l_cam_.getGPIOConfiguration() );
 }
-void StereoNode::publishImageR(const char *frame, size_t size, ros::Time stamp, int pps, int exposure)
+void StereoNode::publishImageR(const char *frame, size_t size, ros::Time stamp, int pps, double exposure)
 {
   //ros::Time stamp = ros::Time::now();
       
@@ -885,7 +885,7 @@ void StereoNode::publishImageR(const char *frame, size_t size, ros::Time stamp, 
 }
 
 // Timestamp and publish the image. Called by the streaming thread.
-void StereoNode::publishImageLfromList()
+/*void StereoNode::publishImageLfromList()
 {
   char *frame;
   size_t size;
@@ -1080,7 +1080,7 @@ void StereoNode::publishImageRfromList()
     usleep(1000);
   }
   ROS_INFO("Right loop ended, data_ready: %d, %d", r_stamp_ready, r_img_info_ready);
-}
+}*/
 
 void StereoNode::startCamera()
 {
@@ -1094,8 +1094,8 @@ void StereoNode::startCamera()
   l_img_info_ready = false;
   r_stamp_ready = false;
   r_img_info_ready = false;
-  l_thread_ = boost::thread(&StereoNode::publishImageLfromList, this);
-  r_thread_ = boost::thread(&StereoNode::publishImageRfromList, this);
+  //l_thread_ = boost::thread(&StereoNode::publishImageLfromList, this);
+  //r_thread_ = boost::thread(&StereoNode::publishImageRfromList, this);
   timer_force_trigger_.start();
   ROS_INFO("Started video stream.");
   running_ = true;
@@ -1108,8 +1108,8 @@ void StereoNode::stopCamera()
     return;
   ROS_INFO("Stopping video stream.");
   stop_publish_ = true;
-  l_thread_.join();
-  r_thread_.join();
+  //l_thread_.join();
+  //r_thread_.join();
   l_cam_.stopVideoCapture();
   r_cam_.stopVideoCapture();
   leftPpsCount = 0;

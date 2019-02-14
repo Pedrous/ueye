@@ -694,7 +694,7 @@ void CameraNode::CalExp()
 }
 
 // Timestamp and publish the image. Called by the streaming thread.
-void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, int pps, int exposure)
+void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, int pps, double exposure)
 {
   if (cal_exp_)
     CalExp();
@@ -722,7 +722,7 @@ void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, i
   }
 }
 
-void CameraNode::publishImagefromList()
+/*void CameraNode::publishImagefromList()
 {
   char *frame;
   size_t size;
@@ -772,7 +772,7 @@ void CameraNode::publishImagefromList()
     usleep(1000);
   }
   //ROS_INFO("Right loop ended, data_ready: %d, %d", r_stamp_ready, r_img_info_ready);
-}
+}*/
 
 void CameraNode::startCamera()
 {
@@ -782,7 +782,7 @@ void CameraNode::startCamera()
   stop_publish_ = false;
   //stamp_ready = false;
   //img_info_ready = false;
-  thread_ = boost::thread(&CameraNode::publishImagefromList, this);
+  //thread_ = boost::thread(&CameraNode::publishImagefromList, this);
   ROS_INFO("Started video stream.");
   running_ = true;
 }
@@ -792,7 +792,8 @@ void CameraNode::stopCamera()
   if (!running_)
     return;
   ROS_INFO("Stopping video stream.");
-  stop_publish_ = true;thread_.join();
+  stop_publish_ = true;
+  //thread_.join();
   cam_.stopVideoCapture();
   PpsCount = 0;
   ROS_INFO("Stopped video stream.");

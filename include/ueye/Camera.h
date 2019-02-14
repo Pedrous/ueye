@@ -45,6 +45,10 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/interprocess/sync/scoped_lock.hpp>
 
+#include <boost/asio/io_service.hpp>
+#include <boost/bind.hpp>
+#include <boost/thread/thread.hpp>
+
 namespace ueye
 {
 
@@ -184,9 +188,9 @@ public:
   void getAutoBrightnessAOI(IS_RECT& rectAOI);
   int getGPIOConfiguration();
   void getFrameRate(double *rate);
-  bool getImageDataFromList(char **frame, size_t& size, ros::Time& stamp, int& pps, double& exposure, int& count);
-  bool removeFromList();
-  void clearList();
+  //bool getImageDataFromList(char **frame, size_t& size, ros::Time& stamp, int& pps, double& exposure, int& count);
+  //bool removeFromList();
+  //void clearList();
 
   // Set Properties
   void setColorMode(uEyeColor mode);
@@ -250,12 +254,14 @@ private:
 
   std::vector<char*> img_mem_;
   std::vector<int> img_mem_id_;
+  std::vector<int> img_mem_seq_num_;
   void initMemoryPool(int size);
   void destroyMemoryPool();
   void captureThread(CamCaptureCB callback);
   void restartVideoCapture();
-  INT GetLastMem(char** ppLastMem, INT& lMemoryId, INT& lSequenceId);
-  std::string time_in_HH_MM_SS_MMM();
+  void processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB callback);
+  INT GetImageID (char* pbuf);
+  INT GetImageSeqNum (char* pbuf);
   
   IS_RECT aoi_;
   IS_RECT brightness_aoi_;
@@ -279,7 +285,7 @@ private:
   HIDS cam_;
   SENSORINFO cam_info_;
   unsigned int serial_number_;
-  std::vector<imageDataStruct> dataList_;
+  //std::vector<imageDataStruct> dataList_;
   bool trigger;
 
   volatile bool streaming_;
@@ -291,6 +297,9 @@ private:
   IS_MULTI_AOI_CONTAINER * m_psMultiAOIs = new IS_MULTI_AOI_CONTAINER;
   
   boost::mutex mutex;
+  
+  // Added by me for debugging
+  //UEYEIMAGEINFO PrevImageInfo;
 };
 } //namespace ueye
 

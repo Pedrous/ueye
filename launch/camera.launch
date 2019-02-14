@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+
+<launch>
+
+	<!-- see cfg/mono.cfg for detail -->
+	<arg name="device_id"		              default="1" />
+	<arg name="camera_id"		              default="0" />
+	<arg name="namespace"                 default="camera" />
+	<arg name="auto_exposure"	            default="true" />
+	<arg name="auto_exposure_reference"	  default="88" />
+	<arg name="auto_exposure_max"	        default="10.0" />
+	<arg name="auto_exposure_speed"	      default="50" />
+	<arg name="auto_exposure_hysteresis"	default="2" />
+	<arg name="auto_exposure_skip_frames"	default="0" />
+	<arg name="auto_gain"		              default="true" />
+	<arg name="color"		                  default="0" /> <!-- 0:MONO8, 1:MONO16, 2:YUV, 3:YCbCr, 4:BGR5, 5:BGR565, 6:BGR8, 7:BGRA8, 9:BGRY8, 9:RGB8, 10:RGBA8, 11, RGBY8 -->
+	<arg name="config_path"		            default="" />
+	<arg name="exposure_time"	            default="1" /> <!-- 85 -->
+	<arg name="force_streaming"	          default="false" />
+	<arg name="frame_id"		              default="/camera" />
+	<arg name="frame_rate"		            default="235" /> <!-- 30 -->
+	<arg name="gain"		                  default="100" /> <!-- 100 -->
+	<arg name="gain_boost"		            default="false" />
+	<arg name="hardware_gamma"	          default="false" />
+	<arg name="pixel_clock"		            default="480" /> <!-- 86 -->
+	<arg name="extended_pixel_clock"		  default="true" />
+	<arg name="trigger"		                default="0" /> <!-- 0:AUTO, 2:HARDWARE_RISING, 3:HARDWARE_FALLING -->
+	<arg name="zoom"		                  default="1" />
+	<arg name="camera_namespace"          default="$(arg namespace)$(arg device_id)" />
+	<arg name="AOI_Height"		            default="840" />
+	<arg name="AOI_Width"		              default="1936" />
+	<arg name="AOI_Y"		                  default="0" />
+	<arg name="AOI_X"		                  default="0" />
+	<arg name="brightness_AOI_Height"		  default="400" />
+	<arg name="brightness_AOI_Width"		  default="1936" />
+	<arg name="brightness_AOI_Y"		      default="410" />
+	<arg name="brightness_AOI_X"		      default="0" />
+	<arg name="visualize_brighness_AOI"	  default="true" />
+
+	<group ns="$(arg namespace)" >
+		<node pkg="nodelet" type="nodelet" name="ueye_manager" args="manager" output="screen"/> <!-- launch-prefix="gdb -ex run -args" -->
+ 
+		<node pkg="nodelet" type="nodelet" name="camera_nodelet" args="load ueye/CameraNodelet ueye_manager" >
+			<param name="deviceId"		              value="$(arg device_id)" />
+			<param name="cameraId"		              value="$(arg camera_id)" />
+			<param name="auto_exposure"	            value="$(arg auto_exposure)" />
+      <param name="auto_exposure_reference"	  value="$(arg auto_exposure_reference)" />
+	    <param name="auto_exposure_max"	        value="$(arg auto_exposure_max)" />
+	    <param name="auto_exposure_speed"	      value="$(arg auto_exposure_speed)" />
+	    <param name="auto_exposure_hysteresis"	value="$(arg auto_exposure_hysteresis)" />
+	    <param name="auto_exposure_skip_frames"	value="$(arg auto_exposure_skip_frames)" />
+			<param name="auto_gain"		              value="$(arg auto_gain)" />
+			<param name="color"		                  value="$(arg color)" />
+			<param name="config_path"	              value="$(arg config_path)" />
+			<param name="exposure_time"	            value="$(arg exposure_time)" />
+			<param name="force_streaming"         	value="$(arg force_streaming)" />
+			<param name="frame_id"		              value="$(arg frame_id)" />
+			<param name="frame_rate"	              value="$(arg frame_rate)" />
+			<param name="gain"		                  value="$(arg gain)" />
+			<param name="gain_boost"	              value="$(arg gain_boost)" />
+			<param name="hardware_gamma"	          value="$(arg hardware_gamma)" />
+			<param name="pixel_clock"	              value="$(arg pixel_clock)" />
+			<param name="extended_pixel_clock"		  value="$(arg extended_pixel_clock)" />
+			<param name="trigger"		                value="$(arg trigger)" />
+			<param name="zoom"		                  value="$(arg zoom)" />
+			<param name="AOI_Height"		            value="$(arg AOI_Height)" />
+			<param name="AOI_Width"		              value="$(arg AOI_Width)" />
+			<param name="AOI_Y"		                  value="$(arg AOI_Y)" />
+			<param name="AOI_X"		                  value="$(arg AOI_X)" />
+			<param name="brightness_AOI_Height"	  	value="$(arg brightness_AOI_Height)" />
+	    <param name="brightness_AOI_Width"		  value="$(arg brightness_AOI_Width)" />
+	    <param name="brightness_AOI_Y"		      value="$(arg brightness_AOI_Y)" />
+	    <param name="brightness_AOI_X"		      value="$(arg brightness_AOI_X)" />
+	    <param name="visualize_brighness_AOI"	  value="$(arg visualize_brighness_AOI)" />
+		</node>
+		
+		<!-- PRINT THE IMAGE SEQUENCE NUMBER, RESOLUTION AND FRAME RATE -->
+		<!--<node pkg="nodelet" type="nodelet" name="framerate_nodelet" args="load ueye/FramerateNodelet ueye_manager"/>-->
+	</group>
+</launch>

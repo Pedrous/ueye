@@ -921,30 +921,40 @@ void Camera::initMemoryPool(int size)
       break;
   }
 
-  int width = getWidth();
-  int height = getHeight();
+  int width = getROIWidth();
+  int height = getROIHeight();
   if (size < 2) {
     size = 2;
   }
   img_mem_.resize(size);
   img_mem_id_.resize(size);
+  img_mem_seq_num_.resize(size);
   for (int i = 0; i < size; i++) {
     if (IS_SUCCESS != is_AllocImageMem(cam_, width, height, bits, &img_mem_[i], &img_mem_id_[i])) {
       throw uEyeException(-1, "Failed to initialize memory.");
     }
     //add memory to memory pool
-    if (IS_SUCCESS != is_SetImageMem(cam_, img_mem_[i], img_mem_id_[i])) {
-      throw uEyeException(-1, "Failed to initialize memory.");
+    //if (IS_SUCCESS != is_SetImageMem(cam_, img_mem_[i], img_mem_id_[i])) {
+    //  throw uEyeException(-1, "Failed to initialize memory.");
+    //}
+    if (IS_SUCCESS != is_AddToSequence (cam_, img_mem_[i], img_mem_id_[i])) {
+      throw uEyeException(-1, "Failed to add to sequence.");
     }
+    img_mem_seq_num_[i] = i + 1;
   }
+  
+  checkError( is_InitImageQueue(cam_, 0) );
 }
 void Camera::destroyMemoryPool()
 {
+  checkError( is_ExitImageQueue(cam_) );
+  checkError( is_ClearSequence (cam_) );
   for (int i = 0; i < img_mem_.size(); i++) {
-    checkError(is_FreeImageMem(cam_, img_mem_[i], img_mem_id_[i]));
+    checkError( is_FreeImageMem(cam_, img_mem_[i], img_mem_id_[i]) );
   }
   img_mem_.clear();
   img_mem_id_.clear();
+  img_mem_seq_num_.clear();
 }
 
 void Camera::captureThread(CamCaptureCB callback)
@@ -952,10 +962,10 @@ void Camera::captureThread(CamCaptureCB callback)
   streaming_ = true;
   stop_capture_ = false;
 
-  initMemoryPool(4);
+  initMemoryPool(100);
 
   // Setup video event
-  checkError(is_EnableEvent(cam_, IS_SET_EVENT_FRAME));
+  //checkError(is_EnableEvent(cam_, IS_SET_EVENT_FRAME));
 
   // There is a weird condition with the uEye SDK 4.30 where
   // this never returns when using IS_WAIT.
@@ -1002,146 +1012,167 @@ void Camera::captureThread(CamCaptureCB callback)
   }
   size_t size = (size_t)getROIWidth() * (size_t)getROIHeight() * depth;
   //ROS_INFO("Size: %d, Width: %d, Height: %d, aoi_.s32Width: %d, aoi_.s32Height: %d", size, (size_t)getROIWidth(), (size_t)getROIHeight(), aoi_.s32Width, aoi_.s32Height);
-
-  char *img_mem;
-  bool ppsLock = true;
-  imageDataStruct imgData;
-  imgData.size = size;
-  int frameCount = 0;
-  int imageID = 0;
-  char *pcMem = NULL;
+  
+  char *img_mem = NULL;
+  int img_ID = 0;
   UEYEIMAGEINFO ImageInfo;
-  unsigned long long u64TimestampDevice;
-  DWORD dwIoStatus;
+  UEYE_CAPTURE_STATUS_INFO CaptureStatusInfo;
+  //PrevImageInfo.u64FrameNumber = 0;
   
-  char* ppcImgMem;
-  int memID;
-  std::time_t t;
-  putenv("TZ=Europe/Finland");
-  
-  checkError( is_AllocImageMem (cam_, getROIWidth(), getROIHeight(), 1, &ppcImgMem, &memID) );
-  //ROS_INFO("is_AllocImageMem Success");
-  checkError( is_SetImageMem (cam_, ppcImgMem, memID) );
-  //ROS_INFO("is_SetImageMem Success");
-  checkError( is_AddToSequence (cam_, ppcImgMem, memID) );
-  //ROS_INFO("is_AddToSequence Success");
-  checkError( is_InitImageQueue(cam_, 0) );
-  //ROS_INFO("is_InitImageQueue Success");
-    //ROS_INFO("is_InitImageQueue Success, frame rate: %f", frame_rate_);
-  //else
-    //ROS_INFO("is_InitImageQueue Failure");
+  // Initialize thread pool service
+  boost::asio::io_service ioService;
+  boost::thread_group threadpool;
+  boost::asio::io_service::work work(ioService);
+  // This will add 2 threads to the thread pool
+  threadpool.create_thread( boost::bind(&boost::asio::io_service::run, &ioService) );
+  threadpool.create_thread( boost::bind(&boost::asio::io_service::run, &ioService) );
   
   while (!stop_capture_) {
     // Wait for image. Timeout after 2*FramePeriod = (2000ms/FrameRate)
     
-    if ( IS_SUCCESS == is_WaitForNextImage(cam_, 1000, &pcMem, &imageID) ) {
-      //ROS_INFO("is_WaitForNextImage Success");
-      imgData.exposure = getExposure();
-      auto now = std::chrono::system_clock::now();
-      auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
-      auto timer = std::chrono::system_clock::to_time_t(now);
-      std::tm bt = *std::localtime(&timer);
-      
-      //std::ostringstream oss;
-
-      //oss << std::put_time(&bt, "%H:%M:%S"); // HH:MM:SS
-      //oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
-
-      //std::cout << oss.str() << " " << ms.count() << " " << seconds_since_epoch.count() << std::endl;
-      
-      if ( IS_SUCCESS == is_GetImageInfo(cam_, imageID, &ImageInfo, sizeof(ImageInfo)) ) {
-        /*ROS_INFO("%02d.%02d.%04d, %02d:%02d:%02d:%03d, IO: %d, Buffers: %d/%d, Frame number: %llu, Process time: %d",
-        ImageInfo.TimestampSystem.wDay,
-        ImageInfo.TimestampSystem.wMonth,
-        ImageInfo.TimestampSystem.wYear,
-        ImageInfo.TimestampSystem.wHour,
-        ImageInfo.TimestampSystem.wMinute,
-        ImageInfo.TimestampSystem.wSecond,
-        ImageInfo.TimestampSystem.wMilliseconds,
-        ImageInfo.dwIoStatus,
-        ImageInfo.dwImageBuffersInUse,
-        ImageInfo.dwImageBuffers,
-        ImageInfo.u64FrameNumber,
-        ImageInfo.dwHostProcessTime);*/
+    //INT status = is_WaitEvent(cam_, IS_SET_EVENT_FRAME, 1000);
+    INT status = is_WaitForNextImage(cam_, 1000, &img_mem, &img_ID);
+    if ( IS_SUCCESS == status) {
+      // Assign the task for the thread pool
+      ioService.post(boost::bind(&Camera::processFrame, this, img_mem, img_ID, size, callback));
+    }
+    else {
+      ROS_INFO("Dropped, %d", status);
+      is_CaptureStatus (cam_, IS_CAPTURE_STATUS_INFO_CMD_GET, (void*)&CaptureStatusInfo, sizeof(CaptureStatusInfo));
+      ROS_INFO("Capturestatus Total Errors: %d \n  No Mem: %d \n  Conv fail: %d \n  image lock: %d \n  no buf: %d \n  dev not ready: %d \n  transfer fail: %d \n  timeout: %d \n  buf overrun: %d \n  missed img: %d \n capt failed: %d", 
+                CaptureStatusInfo.dwCapStatusCnt_Total,
+                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_NO_DEST_MEM],
+                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_CONVERSION_FAILED],
+                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_IMAGE_LOCKED],
+                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DRV_OUT_OF_BUFFERS],
+                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DRV_DEVICE_NOT_READY],
+                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_USB_TRANSFER_FAILED],
+                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DEV_TIMEOUT],
+                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_ETH_BUFFER_OVERRUN],
+                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DEV_MISSED_IMAGES],
+                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DEV_FRAME_CAPTURE_FAILED] );
+    }
         
-        if ( bt.tm_sec == ImageInfo.TimestampSystem.wSecond ) { 
-          imgData.stamp = ros::Time(seconds_since_epoch.count(), ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000);
-        }
-        else if ( bt.tm_sec > ImageInfo.TimestampSystem.wSecond ){
-          imgData.stamp = ros::Time(seconds_since_epoch.count() - 1, ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000 );
-        }
-        else {
-          ROS_INFO("Behavior is not possible, arrival time cannot be smaller than trigger time");
-          ROS_INFO("%02d.%02d.%04d, %02d:%02d:%02d:%03d, IO: %d, Buffers: %d/%d, Frame number: %llu, Process time: %d",
-          ImageInfo.TimestampSystem.wDay,
-          ImageInfo.TimestampSystem.wMonth,
-          ImageInfo.TimestampSystem.wYear,
-          ImageInfo.TimestampSystem.wHour,
-          ImageInfo.TimestampSystem.wMinute,
-          ImageInfo.TimestampSystem.wSecond,
-          ImageInfo.TimestampSystem.wMilliseconds,
-          ImageInfo.dwIoStatus,
-          ImageInfo.dwImageBuffersInUse,
-          ImageInfo.dwImageBuffers,
-          ImageInfo.u64FrameNumber,
-          ImageInfo.dwHostProcessTime);
-          ROS_INFO("Local time: %s", asctime (&bt));
-        }
-        
-        //ROS_INFO("%d.%09d", imgData.stamp.sec, imgData.stamp.nsec);
-        
-        imgData.img_mem = pcMem;
-        imgData.imgID = imageID;
-        std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
-        imgData.pps = IoStatus[1];
-        
-        if (trigger && ppsLock)
+    /*if (trigger && ppsLock)
+    {
+      if (IoStatus[1] == 1)
+      {
+        //ROS_INFO("img mem at Camera.cpp %p", img_mem);
+        //ROS_INFO("imgData.img_mem at Camera.cpp %p", imgData.img_mem);
         {
-          if (IoStatus[1] == 1)
-          {
-            //ROS_INFO("img mem at Camera.cpp %p", img_mem);
-            //ROS_INFO("imgData.img_mem at Camera.cpp %p", imgData.img_mem);
-            {
-              frameCount++;
-              imgData.count = frameCount;
-              boost::mutex::scoped_lock lock(mutex);
-              dataList_.push_back(imgData);
-              //ROS_INFO("dataList Size %d", dataList_.size());
-            }
-            ppsLock = false;
-            //dataList_.push_back({img_mem, size, ros::Time::now(), getGPIOConfiguration(), getExposure()});
-            
-            //callback(img_mem, size, ros::Time::now(), getGPIOConfiguration(), getExposure());
-          }
-        }
-        else
-        { 
-          //ROS_INFO("img mem at Camera.cpp %p", img_mem);
-          //ROS_INFO("imgData.img_mem at Camera.cpp %p", imgData.img_mem);
           frameCount++;
           imgData.count = frameCount;
           boost::mutex::scoped_lock lock(mutex);
           dataList_.push_back(imgData);
           //ROS_INFO("dataList Size %d", dataList_.size());
         }
+        ppsLock = false;
+        //dataList_.push_back({img_mem, size, ros::Time::now(), getGPIOConfiguration(), getExposure()});
+        
+        //callback(img_mem, size, ros::Time::now(), getGPIOConfiguration(), getExposure());
       }
-    }  
-      
-    //checkError( is_UnlockSeqBuf(cam_, imageID, pcMem) );
-    //ROS_INFO("is_UnlockSeqBuf Success");
+    }
+    else
+    { 
+      //ROS_INFO("img mem at Camera.cpp %p", img_mem);
+      //ROS_INFO("imgData.img_mem at Camera.cpp %p", imgData.img_mem);
+      frameCount++;
+      imgData.count = frameCount;
+      boost::mutex::scoped_lock lock(mutex);
+      dataList_.push_back(imgData);
+      //ROS_INFO("dataList Size %d", dataList_.size());
+    }*/ 
   }
+  
+  // Stop thread pool and join threads
+  ioService.stop();
+  threadpool.join_all();
 
-  checkError( is_ExitImageQueue(cam_) );
   // Stop video event
-  checkError(is_DisableEvent(cam_, IS_SET_EVENT_FRAME));
+  //checkError(is_DisableEvent(cam_, IS_SET_EVENT_FRAME));
   checkError(is_StopLiveVideo(cam_, IS_WAIT));
 
   destroyMemoryPool();
   streaming_ = false;
 }
 
+void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB callback) {
+  double exposure = getExposure();
+  auto now = std::chrono::system_clock::now();
+  
+  auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
+  auto timer = std::chrono::system_clock::to_time_t(now);
+  
+  putenv("TZ=Europe/Finland");
+  std::tm bt = *std::localtime(&timer);
+  
+  UEYEIMAGEINFO ImageInfo;
+  ros::Time stamp;
+  
+  //double dblFPS;
+  //is_GetFramesPerSecond (cam_, &dblFPS);
+  
+  if ( IS_SUCCESS == is_GetImageInfo(cam_, img_ID, &ImageInfo, sizeof(ImageInfo)) ) {
+    /*ROS_INFO("%02d:%03d, IO: %d, Buffers: %d/%d, Frame number: %llu, Process time: %d, Frame_rate: %f",
+    ImageInfo.TimestampSystem.wSecond,
+    ImageInfo.TimestampSystem.wMilliseconds,
+    ImageInfo.dwIoStatus,
+    ImageInfo.dwImageBuffersInUse,
+    ImageInfo.dwImageBuffers,
+    ImageInfo.u64FrameNumber,
+    ImageInfo.dwHostProcessTime,
+    dblFPS);*/
+    
+    if ( bt.tm_sec == ImageInfo.TimestampSystem.wSecond ) { 
+      stamp = ros::Time(seconds_since_epoch.count(), ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000);
+    }
+    else {
+      stamp = ros::Time(seconds_since_epoch.count() - 1, ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000 );
+    }
+  
+    std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
+    callback(img_mem, size, stamp, IoStatus[1], exposure);
+    
+    /*if (PrevImageInfo.u64FrameNumber && PrevImageInfo.u64FrameNumber != ImageInfo.u64FrameNumber - 1) {
+      ROS_INFO("Frame dropped");
+      UEYE_CAPTURE_STATUS_INFO CaptureStatusInfo;
+      is_CaptureStatus (cam_, IS_CAPTURE_STATUS_INFO_CMD_GET, (void*)&CaptureStatusInfo, sizeof(CaptureStatusInfo));
+      ROS_INFO("prevFrame: %d, currFrame: %d", PrevImageInfo.u64FrameNumber, ImageInfo.u64FrameNumber);
+      ROS_INFO("Capturestatus Total Errors: %d, No Mem: %d", 
+                CaptureStatusInfo.dwCapStatusCnt_Total,
+                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_NO_DEST_MEM] );
+    }
+    PrevImageInfo = ImageInfo;*/
+  }
+  
+  int img_seq_num = GetImageSeqNum(img_mem);
+  checkError( is_UnlockSeqBuf(cam_, img_seq_num, img_mem) );
+}
 
-bool Camera::getImageDataFromList(char **frame, size_t& size, ros::Time& stamp, int& pps, double& exposure, int& count)
+INT Camera::GetImageID (char* pbuf) {
+  if (!pbuf)
+      return 0;
+  for (int i = 0; i < img_mem_.size(); i++) {
+    if (img_mem_[i] == pbuf)
+      return img_mem_id_[i];
+  }
+
+  return 0;
+}
+
+INT Camera::GetImageSeqNum (char* pbuf) {
+  if (!pbuf)
+      return 0;
+  for (int i = 0; i < img_mem_.size(); i++) {
+    if (img_mem_[i] == pbuf)
+      return img_mem_seq_num_[i];
+  }
+  
+  return 0;
+}
+
+
+/*bool Camera::getImageDataFromList(char **frame, size_t& size, ros::Time& stamp, int& pps, double& exposure, int& count)
 {
   boost::mutex::scoped_lock lock(mutex);
   //ROS_INFO("getImageDataFromList %d", dataList_.size());
@@ -1174,12 +1205,12 @@ bool Camera::removeFromList()
   //ROS_INFO("is_UnlockSeqBuf Success");
   boost::mutex::scoped_lock lock(mutex);
   dataList_.erase(dataList_.begin());
-}
+}*/
 
 void Camera::startVideoCapture(CamCaptureCB callback)
 {
   stream_callback_ = callback;
-  clearList();
+  //clearList();
   thread_ = boost::thread(&Camera::captureThread, this, callback);
 }
 void Camera::stopVideoCapture()
@@ -1198,31 +1229,6 @@ void Camera::restartVideoCapture()
       startVideoCapture(stream_callback_);
     }
   }
-}
-
-std::string Camera::time_in_HH_MM_SS_MMM()
-{
-    using namespace std::chrono;
-
-    // get current time
-    auto now = system_clock::now();
-
-    // get number of milliseconds for the current second
-    // (remainder after division into seconds)
-    auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
-
-    // convert to std::time_t in order to convert to std::tm (broken time)
-    auto timer = system_clock::to_time_t(now);
-
-    // convert to broken time
-    std::tm bt = *std::localtime(&timer);
-
-    std::ostringstream oss;
-
-    oss << std::put_time(&bt, "%H:%M:%S"); // HH:MM:SS
-    oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
-
-    return oss.str();
 }
 
 } //namespace ueye

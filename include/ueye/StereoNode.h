@@ -72,10 +72,10 @@ private:
 
   void loadIntrinsics(Camera &cam, sensor_msgs::CameraInfo &msg_info);
   sensor_msgs::ImagePtr processFrame(const char *frame, size_t size, const Camera &cam, sensor_msgs::CameraInfoPtr &info, sensor_msgs::CameraInfo &msg_info);
-  void publishImageL(const char *frame, size_t size, ros::Time stamp, int pps, int exposure);
-  void publishImageR(const char *frame, size_t size, ros::Time stamp, int pps, int exposure);
-  void publishImageLfromList();
-  void publishImageRfromList();
+  void publishImageL(const char *frame, size_t size, ros::Time stamp, int pps, double exposure);
+  void publishImageR(const char *frame, size_t size, ros::Time stamp, int pps, double exposure);
+  //void publishImageLfromList();
+  //void publishImageRfromList();
   void startCamera();
   void stopCamera();
   void closeCamera();
