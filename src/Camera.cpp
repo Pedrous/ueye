@@ -1142,11 +1142,11 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     
     //std::cout << IoStatus << std::endl;
     
-    if (IoStatus[0] == 0) {
+    /*if (IoStatus[0] == 1) {
       if (PrevImageInfo.u64FrameNumber == 0)
         PrevImageInfo = ImageInfo;
       ROS_INFO("Serial: %u, Time: %d.%09d Frame: %d, PPS: %d", serial_number_, stamp.sec, stamp.nsec, ImageInfo.u64FrameNumber - PrevImageInfo.u64FrameNumber, (int)IoStatus[0] );
-    }
+    }*/
     /*if (PrevImageInfo.u64FrameNumber && PrevImageInfo.u64FrameNumber != ImageInfo.u64FrameNumber - 1) {
       ROS_INFO("Frame dropped");
       UEYE_CAPTURE_STATUS_INFO CaptureStatusInfo;

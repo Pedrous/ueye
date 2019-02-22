@@ -17,7 +17,7 @@
 	<arg name="hardware_gamma"	            default="false" />
 	<arg name="pixel_clock"		              default="480" /> <!-- 86 -->
 	<arg name="extended_pixel_clock"		    default="true" />
-	<arg name="trigger"		                  default="2" /> <!-- 0:AUTO, 1:SOFTWARE, 2:HARDWARE_RISING, 3:HARDWARE_FALLING -->
+	<arg name="trigger"		                  default="0" /> <!-- 0:AUTO, 1:SOFTWARE, 2:HARDWARE_RISING, 3:HARDWARE_FALLING -->
 	<arg name="zoom"		                    default="1" />
 	<arg name="height"		                  default="840" />
 	<arg name="width"		                    default="1936" />
@@ -73,11 +73,11 @@
       <param name="r_brightness_AOI_Y"		      value="$(arg brightness_AOI_Y)" />
       <param name="software_binning"		        value="$(arg software_binning)" />
       <param name="visualize_brightness_AOI"		value="$(arg visualize_brightness_AOI)" />
-      <param name="auto_exposure_hysteresis"		value="$(arg height)" />
-      <param name="auto_exposure_max"		        value="$(arg height)" />
-      <param name="auto_exposure_reference"		  value="$(arg height)" />
-      <param name="auto_exposure_skip_frames"		value="$(arg height)" />
-      <param name="auto_exposure_speed"		      value="$(arg height)" />
+      <param name="auto_exposure_hysteresis"		value="$(arg auto_exposure_hysteresis)" />
+      <param name="auto_exposure_max"		        value="$(arg auto_exposure_max)" />
+      <param name="auto_exposure_reference"		  value="$(arg auto_exposure_reference)" />
+      <param name="auto_exposure_skip_frames"		value="$(arg auto_exposure_skip_frames)" />
+      <param name="auto_exposure_speed"		      value="$(arg auto_exposure_speed)" />
       
 		</node>
 		
