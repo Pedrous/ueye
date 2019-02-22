@@ -663,7 +663,7 @@ void CameraNode::BinImg(sensor_msgs::ImagePtr &msg)
   msg = cv_ptr->toImageMsg();
 }
 
-void CameraNode::CalExp()
+void CameraNode::CalExp(double exposure)
 {
   static unsigned int counter = 0;
   if (!cal_exp_2_ && counter >= 1)
@@ -671,8 +671,7 @@ void CameraNode::CalExp()
   counter++;
   if (counter >= 5)
   {
-    double exp_t = cam_.getExposure();
-    if (exp_t > 19.9)
+    if (exposure > 19.9)
     {
       cal_exp_latch_ = false;
       double min_exp_t = cam_.getExposureMin();
@@ -697,7 +696,7 @@ void CameraNode::CalExp()
 void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, int pps, double exposure)
 {
   if (cal_exp_)
-    CalExp();
+    CalExp(exposure);
   sensor_msgs::CameraInfoPtr info;
   sensor_msgs::ImagePtr img = processFrame(frame, size, cam_, info, msg_camera_info_);
   if (visualize_)
