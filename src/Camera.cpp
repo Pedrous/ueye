@@ -1097,9 +1097,9 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
   //ROS_INFO("GPIO: %d", getGPIOConfiguration() );
   //int GPIO = getGPIOConfiguration();
   double exposure = getExposure();
-  double pval1, pval2;
-  is_SetAutoParameter (cam_, IS_SET_ENABLE_AUTO_SHUTTER, &pval1, &pval2);
-  ROS_INFO("is_exposure: %d, is_setAutoParameter: %d", exposure, pval1);
+  //double pval1, pval2;
+  //is_SetAutoParameter (cam_, IS_GET_ENABLE_AUTO_SENSOR_SHUTTER, &pval1, &pval2);
+  //ROS_INFO("is_exposure: %f, is_setAutoParameter: %f", exposure, pval1);
   //double gain = ;
   
   auto now = std::chrono::system_clock::now();

@@ -459,7 +459,7 @@ void CameraNode::reconfig(monoConfig &config, uint32_t level)
     { 
       std::stringstream name;
       std::string file;
-      name << "/home/petrimanninen/Codes/Photo_calibration/ExpCal-" << cam_.getCameraName() << "-" << cam_.getCameraSerialNo() << "-" << order << ".bag";
+      name << "/home/snowflake/Photo_calibration/ExpCal-" << cam_.getCameraName() << "-" << cam_.getCameraSerialNo() << "-" << order << ".bag";
       file = name.str();
       if( access( file.c_str(), F_OK ) == -1 )
       {
@@ -468,11 +468,11 @@ void CameraNode::reconfig(monoConfig &config, uint32_t level)
       }
       order++;
     }
-    
-    // Publish exposure time and PPS control values
-    if (publish_extras_ != config.publish_extras)
-      publish_extras_ = config.publish_extras;
   }
+  
+  // Publish exposure time and PPS control values
+  if (publish_extras_ != config.publish_extras)
+    publish_extras_ = config.publish_extras;
   
   msg_camera_info_.header.frame_id = config.frame_id;
   configured_ = true;
@@ -706,13 +706,15 @@ void CameraNode::CalExp(double exposure)
   counter++;
   if (counter >= 5)
   {
+    counter = 0;
     //double exp_t = cam_.getExposure();
     if (exposure > 19.9)
     {
-      cal_exp_latch_ = false;
+      cal_exp_ = false;
       double min_exp_t = cam_.getExposureMin();
       cam_.setExposure(&min_exp_t);
       ROS_INFO("EXPOSURE CALIBRATION FINISHED");
+      bag.close();
     }
     else
     {
@@ -723,17 +725,13 @@ void CameraNode::CalExp(double exposure)
       //  exposure_calib_newest_.exp_time = new_exp_t;
       cam_.setExposure(&new_exposure);
       ROS_INFO("EXPOSURE: %f", new_exposure);
-    }
-    counter = 0;
+    }  
   }
 }
 
 // Timestamp and publish the image. Called by the streaming thread.
 void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, int pps, double exposure)
-{
-  if (cal_exp_)
-    CalExp(exposure);
-    
+{  
   if (publish_extras_)
   {
     // Publish ppscontrol and exposure values
@@ -768,6 +766,12 @@ void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, i
   //pub_exposure_.publish(exposure_calib_);
   info->header.stamp = stamp;
   pub_stream_.publish(img, info);
+  
+  if (cal_exp_) {
+    bag.write("exposure", stamp, extras_);
+    bag.write("image", stamp, img);
+    CalExp(exposure);
+  }
   /*if (cal_exp_2_)
   {
     bag.write("exposure", ros::Time::now(), exposure_calib_);
