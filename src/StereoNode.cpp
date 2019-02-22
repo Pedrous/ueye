@@ -97,7 +97,8 @@ StereoNode::StereoNode(ros::NodeHandle node, ros::NodeHandle priv_nh) :
 
   // Open cameras with either serialNo, deviceId, or cameraId
   int id = 0;
-  if (priv_nh.getParam("lSerialNo", id)) {
+  priv_nh.getParam("lSerialNo", id);
+  if (id) {
     if (!l_cam_.openCameraSerNo(id)) {
       ROS_ERROR("Failed to open uEye camera with serialNo: %u.", id);
       ros::shutdown();
@@ -119,7 +120,8 @@ StereoNode::StereoNode(ros::NodeHandle node, ros::NodeHandle priv_nh) :
   }
   ROS_INFO("Left  camera: %s %u", l_cam_.getCameraName(), l_cam_.getCameraSerialNo());
   id = 0;
-  if (priv_nh.getParam("rSerialNo", id)) {
+  priv_nh.getParam("rSerialNo", id);
+  if (id) {
     if (!r_cam_.openCameraSerNo(id)) {
       ROS_ERROR("Failed to open uEye camera with serialNo: %u.", id);
       ros::shutdown();
@@ -809,7 +811,7 @@ void StereoNode::publishImageL(const char *frame, size_t size, ros::Time stamp, 
         ROS_INFO("Left Camera frequency: %d Hz", leftPpsCount);
       leftPpsCount = 0;
     }*/
-    left_extras_.exp_time = l_exposure_;
+    left_extras_.exposure_time = l_exposure_;
     if (auto_exposure_)
       l_exposure_ = exposure; //l_cam_.getExposure();
     else
@@ -861,7 +863,7 @@ void StereoNode::publishImageR(const char *frame, size_t size, ros::Time stamp, 
         ROS_INFO("Right Camera frequency: %d Hz", rightPpsCount);
       rightPpsCount = 0;
     }*/
-    right_extras_.exp_time = r_exposure_;
+    right_extras_.exposure_time = r_exposure_;
     if (auto_exposure_)
       r_exposure_ = exposure;
     else
@@ -972,7 +974,7 @@ void StereoNode::publishImageR(const char *frame, size_t size, ros::Time stamp, 
             ROS_INFO("Left Camera frequency: %d Hz", leftPpsCount);
           leftPpsCount = 0;
         }
-        left_extras_.exp_time = l_exposure_;
+        left_extras_.exposure_time = l_exposure_;
         if (auto_exposure_)
           l_exposure_ = exposure; //l_cam_.getExposure();
         else
@@ -1055,7 +1057,7 @@ void StereoNode::publishImageRfromList()
             ROS_INFO("Right Camera frequency: %d Hz", rightPpsCount);
           rightPpsCount = 0;
         }
-        right_extras_.exp_time = r_exposure_;
+        right_extras_.exposure_time = r_exposure_;
         if (auto_exposure_)
           r_exposure_ = exposure;
         else

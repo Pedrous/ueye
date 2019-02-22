@@ -2,6 +2,8 @@
 
 <launch>
 	<!-- see cfg/mono.cfg for detail -->
+	<arg name="left_cam_serial"             default="0" />
+  <arg name="right_cam_serial"            default="0" />
 	<arg name="namespace"                   default="camera" />
 	<arg name="auto_exposure"	              default="true" />
 	<arg name="auto_gain"		                default="true" />
@@ -39,6 +41,8 @@
 		<node pkg="nodelet" type="nodelet" name="ueye_manager" args="manager" output="screen"/>
 
 		<node pkg="nodelet" type="nodelet" name="camera_nodelet" args="load ueye/StereoNodelet ueye_manager" >
+		  <param name="lSerialNo"                   value="$(arg left_cam_serial)" />
+		  <param name="rSerialNo"                   value="$(arg right_cam_serial)" />
 		  <param name="auto_gain"		                value="$(arg auto_gain)" />
 		  <param name="color"		                    value="$(arg color)" />
 		  <param name="config_path"	                value="$(arg config_path)" />

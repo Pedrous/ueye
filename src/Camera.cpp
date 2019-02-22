@@ -1097,6 +1097,11 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
   //ROS_INFO("GPIO: %d", getGPIOConfiguration() );
   //int GPIO = getGPIOConfiguration();
   double exposure = getExposure();
+  double pval1, pval2;
+  is_SetAutoParameter (cam_, IS_SET_ENABLE_AUTO_SHUTTER, &pval1, &pval2);
+  ROS_INFO("is_exposure: %d, is_setAutoParameter: %d", exposure, pval1);
+  //double gain = ;
+  
   auto now = std::chrono::system_clock::now();
   
   auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
@@ -1138,7 +1143,7 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     }
   
     std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
-    callback(img_mem, size, stamp, !IoStatus[0], exposure);
+    callback(img_mem, size, stamp, !IoStatus[0], exposure); // gain, ImageInfo.u64FrameNumber);
     
     //std::cout << IoStatus << std::endl;
     
@@ -1184,7 +1189,6 @@ INT Camera::GetImageSeqNum (char* pbuf) {
   
   return 0;
 }
-
 
 /*bool Camera::getImageDataFromList(char **frame, size_t& size, ros::Time& stamp, int& pps, double& exposure, int& count)
 {

@@ -3,7 +3,6 @@
 <launch>
 
 	<!-- see cfg/mono.cfg for detail -->
-	<arg name="cam_serial"                default="0" />
 	<arg name="device_id"		              default="1" />
 	<arg name="camera_id"		              default="0" />
 	<arg name="namespace"                 default="camera" />
@@ -19,30 +18,30 @@
 	<arg name="exposure_time"	            default="1" /> <!-- 85 -->
 	<arg name="force_streaming"	          default="false" />
 	<arg name="frame_id"		              default="/camera" />
-	<arg name="frame_rate"		            default="235" /> <!-- 30 -->
+	<arg name="frame_rate"		            default="20" /> <!-- 30 -->
 	<arg name="gain"		                  default="100" /> <!-- 100 -->
 	<arg name="gain_boost"		            default="false" />
 	<arg name="hardware_gamma"	          default="false" />
 	<arg name="pixel_clock"		            default="480" /> <!-- 86 -->
 	<arg name="extended_pixel_clock"		  default="true" />
-	<arg name="trigger"		                default="2" /> <!-- 0:AUTO, 2:HARDWARE_RISING, 3:HARDWARE_FALLING -->
+	<arg name="trigger"		                default="0" /> <!-- 0:AUTO, 2:HARDWARE_RISING, 3:HARDWARE_FALLING -->
 	<arg name="zoom"		                  default="1" />
+	<arg name="software_binning"	        default="true" />
 	<arg name="camera_namespace"          default="$(arg namespace)$(arg device_id)" />
-	<arg name="AOI_Height"		            default="840" />
+	<arg name="AOI_Height"		            default="1216" />
 	<arg name="AOI_Width"		              default="1936" />
 	<arg name="AOI_Y"		                  default="0" />
 	<arg name="AOI_X"		                  default="0" />
-	<arg name="brightness_AOI_Height"		  default="400" />
+	<arg name="brightness_AOI_Height"		  default="1216" />
 	<arg name="brightness_AOI_Width"		  default="1936" />
-	<arg name="brightness_AOI_Y"		      default="410" />
+	<arg name="brightness_AOI_Y"		      default="0" />
 	<arg name="brightness_AOI_X"		      default="0" />
-	<arg name="visualize_brighness_AOI"	  default="true" />
+	<arg name="visualize_brighness_AOI"	  default="false" />
 
 	<group ns="$(arg namespace)" >
 		<node pkg="nodelet" type="nodelet" name="ueye_manager" args="manager" output="screen"/> <!-- launch-prefix="gdb -ex run -args" -->
  
 		<node pkg="nodelet" type="nodelet" name="camera_nodelet" args="load ueye/CameraNodelet ueye_manager" >
-		  <param name="SerialNo"                  value="$(arg cam_serial)" />
 			<param name="deviceId"		              value="$(arg device_id)" />
 			<param name="cameraId"		              value="$(arg camera_id)" />
 			<param name="auto_exposure"	            value="$(arg auto_exposure)" />
@@ -65,6 +64,7 @@
 			<param name="extended_pixel_clock"		  value="$(arg extended_pixel_clock)" />
 			<param name="trigger"		                value="$(arg trigger)" />
 			<param name="zoom"		                  value="$(arg zoom)" />
+			<param name="software_binning"	        value="$(arg software_binning)" />
 			<param name="AOI_Height"		            value="$(arg AOI_Height)" />
 			<param name="AOI_Width"		              value="$(arg AOI_Width)" />
 			<param name="AOI_Y"		                  value="$(arg AOI_Y)" />

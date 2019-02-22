@@ -96,7 +96,7 @@ private:
 
   void loadIntrinsics();
   //sensor_msgs::ImagePtr processFrame(const char *frame, size_t size, sensor_msgs::CameraInfoPtr &info);
-  sensor_msgs::ImagePtr processFrame(const char *frame, size_t size, const Camera &cam, sensor_msgs::CameraInfoPtr &info, sensor_msgs::CameraInfo &msg_info);
+  sensor_msgs::ImagePtr processFrame(const char *frame, size_t size, sensor_msgs::CameraInfoPtr &info, sensor_msgs::CameraInfo &msg_info);
   void publishImage(const char *frame, size_t size, ros::Time stamp, int pps, double exposure);
   //void publishImagefromList();
   void startCamera();
@@ -105,7 +105,7 @@ private:
   void handlePath(std::string &path);
   void DrawBrightnessAOI(sensor_msgs::ImagePtr &msg);
   void BinImg(sensor_msgs::ImagePtr &msg);
-  void CalExp();
+  void CalExp(double exposure);
 
   dynamic_reconfigure::Server<monoConfig> srv_;
   ros::Timer timer_;

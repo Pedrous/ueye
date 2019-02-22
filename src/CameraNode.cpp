@@ -81,7 +81,8 @@ CameraNode::CameraNode(ros::NodeHandle &node, ros::NodeHandle &priv_nh) :
 
   // Open camera with either serialNo, deviceId, or cameraId
   int id = 0;
-  if (priv_nh.getParam("serialNo", id)) {
+  priv_nh.getParam("serialNo", id);
+  if (id) {
     if (!cam_.openCameraSerNo(id)) {
       ROS_ERROR("Failed to open uEye camera with serialNo: %u.", id);
       ros::shutdown();
@@ -467,6 +468,10 @@ void CameraNode::reconfig(monoConfig &config, uint32_t level)
       }
       order++;
     }
+    
+    // Publish exposure time and PPS control values
+    if (publish_extras_ != config.publish_extras)
+      publish_extras_ = config.publish_extras;
   }
   
   msg_camera_info_.header.frame_id = config.frame_id;
@@ -590,32 +595,32 @@ void CameraNode::loadIntrinsics()
   return msg_image;
 }*/
 
-sensor_msgs::ImagePtr CameraNode::processFrame(const char *frame, size_t size, const Camera &cam, sensor_msgs::CameraInfoPtr &info, sensor_msgs::CameraInfo &msg_info)
+sensor_msgs::ImagePtr CameraNode::processFrame(const char *frame, size_t size, sensor_msgs::CameraInfoPtr &info, sensor_msgs::CameraInfo &msg_info)
 {
   if (binning_)
   {
-    msg_info.height = cam.getHeight() / 2;
-    msg_info.width = cam.getWidth() / 2;
-    msg_info.roi.width = cam.getROIWidth() / 2;
-    msg_info.roi.height = cam.getROIHeight() / 2;
-    msg_info.roi.x_offset = cam.getROI_X() / 2;
-    msg_info.roi.y_offset = cam.getROI_Y() / 2;
+    msg_info.height = cam_.getHeight() / 2;
+    msg_info.width = cam_.getWidth() / 2;
+    msg_info.roi.width = cam_.getROIWidth() / 2;
+    msg_info.roi.height = cam_.getROIHeight() / 2;
+    msg_info.roi.x_offset = cam_.getROI_X() / 2;
+    msg_info.roi.y_offset = cam_.getROI_Y() / 2;
   }
   else
   {
-    msg_info.height = cam.getHeight();
-    msg_info.width = cam.getWidth();
-    msg_info.roi.width = cam.getROIWidth();
-    msg_info.roi.height = cam.getROIHeight();
-    msg_info.roi.x_offset = cam.getROI_X();
-    msg_info.roi.y_offset = cam.getROI_Y();
+    msg_info.height = cam_.getHeight();
+    msg_info.width = cam_.getWidth();
+    msg_info.roi.width = cam_.getROIWidth();
+    msg_info.roi.height = cam_.getROIHeight();
+    msg_info.roi.x_offset = cam_.getROI_X();
+    msg_info.roi.y_offset = cam_.getROI_Y();
   }
 
   sensor_msgs::ImagePtr msg_image(new sensor_msgs::Image());
   msg_image->header = msg_info.header;
-  msg_image->height = cam.getROIHeight();
-  msg_image->width = cam.getROIWidth();
-  msg_image->encoding = Camera::colorModeToString(cam.getColorMode());
+  msg_image->height = cam_.getROIHeight();
+  msg_image->width = cam_.getROIWidth();
+  msg_image->encoding = Camera::colorModeToString(cam_.getColorMode());
   msg_image->is_bigendian = false;
   msg_image->step = size / msg_image->height;
   //ROS_INFO("Step: %d, size: %d, height: %d", msg_image->step, size, msg_image->height);
@@ -663,7 +668,7 @@ void CameraNode::BinImg(sensor_msgs::ImagePtr &msg)
   msg = cv_ptr->toImageMsg();
 }
 
-void CameraNode::CalExp(double exposure)
+/*void CameraNode::CalExp()
 {
   static unsigned int counter = 0;
   if (!cal_exp_2_ && counter >= 1)
@@ -671,7 +676,8 @@ void CameraNode::CalExp(double exposure)
   counter++;
   if (counter >= 5)
   {
-    if (exposure > 19.9)
+    double exp_t = cam_.getExposure();
+    if (exp_t > 19.9)
     {
       cal_exp_latch_ = false;
       double min_exp_t = cam_.getExposureMin();
@@ -690,6 +696,36 @@ void CameraNode::CalExp(double exposure)
     }
     counter = 0;
   }
+}*/
+
+void CameraNode::CalExp(double exposure)
+{
+  static unsigned int counter = 0;
+  /*if (!cal_exp_2_ && counter >= 1)
+    cal_exp_2_ = true;*/
+  counter++;
+  if (counter >= 5)
+  {
+    //double exp_t = cam_.getExposure();
+    if (exposure > 19.9)
+    {
+      cal_exp_latch_ = false;
+      double min_exp_t = cam_.getExposureMin();
+      cam_.setExposure(&min_exp_t);
+      ROS_INFO("EXPOSURE CALIBRATION FINISHED");
+    }
+    else
+    {
+      double new_exposure = 1.029652447*exposure;
+      if ( (new_exposure - exposure) < exp_increment_ )
+        new_exposure = exposure + exp_increment_;
+      //else
+      //  exposure_calib_newest_.exp_time = new_exp_t;
+      cam_.setExposure(&new_exposure);
+      ROS_INFO("EXPOSURE: %f", new_exposure);
+    }
+    counter = 0;
+  }
 }
 
 // Timestamp and publish the image. Called by the streaming thread.
@@ -697,18 +733,42 @@ void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, i
 {
   if (cal_exp_)
     CalExp(exposure);
+    
+  if (publish_extras_)
+  {
+    // Publish ppscontrol and exposure values
+    extras_.pps = pps; //l_cam_.getGPIOConfiguration();
+    PpsCount++;
+    /*if (left_extras_.pps == 1)
+    {
+      ROS_INFO("Left Camera time, %f, %f", l_stamp_.toSec(), r_stamp_.toSec());
+      if (leftPpsCount != 100)
+        ROS_INFO("Left Camera frequency: %d Hz", leftPpsCount);
+      leftPpsCount = 0;
+    }*/
+    extras_.exposure_time = exposure;
+    /*if (auto_exposure_)
+      l_exposure_ = exposure; //l_cam_.getExposure();
+    else
+      l_exposure_ = exposure_time_;*/
+    
+    extras_.header.stamp = stamp;
+    pub_extras_.publish(extras_);
+  }
+  
   sensor_msgs::CameraInfoPtr info;
-  sensor_msgs::ImagePtr img = processFrame(frame, size, cam_, info, msg_camera_info_);
+  sensor_msgs::ImagePtr img = processFrame(frame, size, info, msg_camera_info_);
   if (visualize_)
     DrawBrightnessAOI(img);
   if (binning_)
     BinImg(img);
   
-  exposure_calib_.header = img->header;
-  exposure_calib_.exp_time = exposure_;
-  pub_exposure_.publish(exposure_calib_);
+  //exposure_calib_.header = img->header;
+  //exposure_calib_.exp_time = exposure_;
+  //pub_exposure_.publish(exposure_calib_);
+  info->header.stamp = stamp;
   pub_stream_.publish(img, info);
-  if (cal_exp_2_)
+  /*if (cal_exp_2_)
   {
     bag.write("exposure", ros::Time::now(), exposure_calib_);
     bag.write("image", ros::Time::now(), img);
@@ -718,7 +778,7 @@ void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, i
     cal_exp_ = cal_exp_latch_;
     if (!cal_exp_2_)
       bag.close();
-  }
+  }*/
 }
 
 /*void CameraNode::publishImagefromList()
