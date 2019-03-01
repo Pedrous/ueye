@@ -46,8 +46,6 @@
 #include <time.h>
 #include <stdlib.h>
 
-#include <chrono>
-
 // Check expected uEye SDK version in ueye.h for supported architectures
 #if defined(__i386) || defined(__i386__) || defined(_M_IX86)
   #define EXPECTED_VERSION_MAJOR 4
@@ -1094,16 +1092,12 @@ void Camera::captureThread(CamCaptureCB callback)
 }
 
 void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB callback) {
-  //ROS_INFO("GPIO: %d", getGPIOConfiguration() );
-  //int GPIO = getGPIOConfiguration();
-  double exposure = getExposure();
-  //double pval1, pval2;
-  //is_SetAutoParameter (cam_, IS_GET_ENABLE_AUTO_SENSOR_SHUTTER, &pval1, &pval2);
-  //ROS_INFO("is_exposure: %f, is_setAutoParameter: %f", exposure, pval1);
-  //double gain = ;
+
+  //double exposure = getExposure();
+  //unsigned int gain = getHardwareGain();
+  SaveExposureAndGain();
   
   auto now = std::chrono::system_clock::now();
-  
   auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
   auto timer = std::chrono::system_clock::to_time_t(now);
   
@@ -1112,17 +1106,6 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
   
   UEYEIMAGEINFO ImageInfo;
   ros::Time stamp;
-  
-  /*double dblFPS;
-  is_GetFramesPerSecond (cam_, &dblFPS);
-  
-  UEYE_CAPTURE_STATUS_INFO CaptureStatusInfo;
-  is_CaptureStatus (cam_, IS_CAPTURE_STATUS_INFO_CMD_GET, (void*)&CaptureStatusInfo, sizeof(CaptureStatusInfo));
-  //ROS_INFO("prevFrame: %d, currFrame: %d", PrevImageInfo.u64FrameNumber, ImageInfo.u64FrameNumber);
-  ROS_INFO("Capturestatus Total Errors: %d, No Mem: %d, Frame rate: %f", 
-            CaptureStatusInfo.dwCapStatusCnt_Total,
-            CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_NO_DEST_MEM],
-            dblFPS );*/
   
   if ( IS_SUCCESS == is_GetImageInfo(cam_, img_ID, &ImageInfo, sizeof(ImageInfo)) ) {
     /*ROS_INFO("%02d:%03d, IO: %d, Buffers: %d/%d, Frame number: %llu, Process time: %d, Frame_rate: %f",
@@ -1143,25 +1126,10 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     }
   
     std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
+    double exposure;
+    unsigned int gain;
+    LoadExposureAndGain( stamp, exposure, gain );
     callback(img_mem, size, stamp, !IoStatus[0], exposure); // gain, ImageInfo.u64FrameNumber);
-    
-    //std::cout << IoStatus << std::endl;
-    
-    /*if (IoStatus[0] == 1) {
-      if (PrevImageInfo.u64FrameNumber == 0)
-        PrevImageInfo = ImageInfo;
-      ROS_INFO("Serial: %u, Time: %d.%09d Frame: %d, PPS: %d", serial_number_, stamp.sec, stamp.nsec, ImageInfo.u64FrameNumber - PrevImageInfo.u64FrameNumber, (int)IoStatus[0] );
-    }*/
-    /*if (PrevImageInfo.u64FrameNumber && PrevImageInfo.u64FrameNumber != ImageInfo.u64FrameNumber - 1) {
-      ROS_INFO("Frame dropped");
-      UEYE_CAPTURE_STATUS_INFO CaptureStatusInfo;
-      is_CaptureStatus (cam_, IS_CAPTURE_STATUS_INFO_CMD_GET, (void*)&CaptureStatusInfo, sizeof(CaptureStatusInfo));
-      ROS_INFO("prevFrame: %d, currFrame: %d", PrevImageInfo.u64FrameNumber, ImageInfo.u64FrameNumber);
-      ROS_INFO("Capturestatus Total Errors: %d, No Mem: %d", 
-                CaptureStatusInfo.dwCapStatusCnt_Total,
-                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_NO_DEST_MEM] );
-    }
-    PrevImageInfo = ImageInfo;*/
   }
   
   int img_seq_num = GetImageSeqNum(img_mem);
@@ -1188,6 +1156,29 @@ INT Camera::GetImageSeqNum (char* pbuf) {
   }
   
   return 0;
+}
+
+void Camera::SaveExposureAndGain() {
+  boost::mutex::scoped_lock lock(mutex);
+  ExposureGainList_.push_back({ros::Time::now(), getExposure(), getHardwareGain()});
+}
+
+bool Camera::LoadExposureAndGain( ros::Time now, double& exposure, unsigned int& gain) {
+  boost::mutex::scoped_lock lock(mutex);
+  if ( !ExposureGainList_.empty() ) {
+    for (int i = 0; i < ExposureGainList_.size(); i++) {
+      if ( (now - ExposureGainList_[i].stamp).nsec < 1250000 )
+        ROS_INFO("placeholder is %d", i);
+    }
+    
+    exposure = ExposureGainList_[0].exposure;
+    gain = ExposureGainList_[0].gain;
+    //dataList_.erase(dataList_.begin());
+    return true;
+  }
+    
+  else
+    return false;
 }
 
 /*bool Camera::getImageDataFromList(char **frame, size_t& size, ros::Time& stamp, int& pps, double& exposure, int& count)

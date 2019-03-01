@@ -48,11 +48,12 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/bind.hpp>
 #include <boost/thread/thread.hpp>
+#include <chrono>
 
 namespace ueye
 {
 
-struct imageDataStruct
+/*struct imageDataStruct
 {
   char *img_mem;
   size_t size;
@@ -61,6 +62,12 @@ struct imageDataStruct
   double exposure;
   int count;
   int imgID;
+};*/
+
+struct ExposureGainStruct {
+  ros::Time stamp;
+  double exposure;
+  unsigned int gain;
 };
 
 struct uEyeException : public std::runtime_error
@@ -262,6 +269,8 @@ private:
   void processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB callback);
   INT GetImageID (char* pbuf);
   INT GetImageSeqNum (char* pbuf);
+  void SaveExposureAndGain();
+  bool LoadExposureAndGain( ros::Time now, double& exposure, unsigned int& gain );
   
   IS_RECT aoi_;
   IS_RECT brightness_aoi_;
@@ -286,6 +295,7 @@ private:
   SENSORINFO cam_info_;
   unsigned int serial_number_;
   //std::vector<imageDataStruct> dataList_;
+  std::vector<ExposureGainStruct> ExposureGainList_;
   bool trigger;
 
   volatile bool streaming_;
