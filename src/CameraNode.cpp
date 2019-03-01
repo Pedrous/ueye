@@ -81,10 +81,12 @@ CameraNode::CameraNode(ros::NodeHandle &node, ros::NodeHandle &priv_nh) :
 
   // Open camera with either serialNo, deviceId, or cameraId
   int id = 0;
-  priv_nh.getParam("serialNo", id);
-  if (id) {
-    if (!cam_.openCameraSerNo(id)) {
-      ROS_ERROR("Failed to open uEye camera with serialNo: %u.", id);
+  std::string serial_str;
+  priv_nh.getParam("serialNo", serial_str);
+  unsigned int serial = std::stol(serial_str);
+  if (serial) {
+    if (!cam_.openCameraSerNo(serial)) {
+      ROS_ERROR("Failed to open uEye camera with serialNo: %u.", serial);
       ros::shutdown();
       return;
     }
@@ -428,7 +430,7 @@ void CameraNode::reconfig(monoConfig &config, uint32_t level)
   // Exposure calibration
   if (config.calibrate_exposure == true)
   {
-    config.frame_rate = 50;
+    config.frame_rate = 200;
     cam_.setFrameRate(&config.frame_rate);
     config.auto_exposure = false;
     cam_.setAutoExposure(&config.auto_exposure);
@@ -708,7 +710,7 @@ void CameraNode::CalExp(double exposure)
   {
     counter = 0;
     //double exp_t = cam_.getExposure();
-    if (exposure > 19.9)
+    if (exposure > 4.1)
     {
       cal_exp_ = false;
       double min_exp_t = cam_.getExposureMin();

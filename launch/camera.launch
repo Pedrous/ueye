@@ -42,7 +42,7 @@
 		<node pkg="nodelet" type="nodelet" name="ueye_manager" args="manager" output="screen"/> <!-- launch-prefix="gdb -ex run -args" -->
  
 		<node pkg="nodelet" type="nodelet" name="camera_nodelet" args="load ueye/CameraNodelet ueye_manager" >
-		  <param name="SerialNo"                  value="$(arg cam_serial)" />
+		  <param name="serialNo" type="str"       value="$(arg cam_serial)" />
 			<param name="deviceId"		              value="$(arg device_id)" />
 			<param name="cameraId"		              value="$(arg camera_id)" />
 			<param name="auto_exposure"	            value="$(arg auto_exposure)" />

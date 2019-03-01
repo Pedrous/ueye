@@ -97,10 +97,12 @@ StereoNode::StereoNode(ros::NodeHandle node, ros::NodeHandle priv_nh) :
 
   // Open cameras with either serialNo, deviceId, or cameraId
   int id = 0;
-  priv_nh.getParam("lSerialNo", id);
-  if (id) {
-    if (!l_cam_.openCameraSerNo(id)) {
-      ROS_ERROR("Failed to open uEye camera with serialNo: %u.", id);
+  std::string serial_str;
+  priv_nh.getParam("lSerialNo", serial_str);
+  unsigned int serial = std::stol(serial_str);
+  if (serial) {
+    if (!l_cam_.openCameraSerNo(serial)) {
+      ROS_ERROR("Failed to open uEye camera with serialNo: %u.", serial);
       ros::shutdown();
       return;
     }
@@ -120,7 +122,9 @@ StereoNode::StereoNode(ros::NodeHandle node, ros::NodeHandle priv_nh) :
   }
   ROS_INFO("Left  camera: %s %u", l_cam_.getCameraName(), l_cam_.getCameraSerialNo());
   id = 0;
-  priv_nh.getParam("rSerialNo", id);
+  serial_str = "0";
+  priv_nh.getParam("rSerialNo", serial_str);
+  serial = std::stol(serial_str);
   if (id) {
     if (!r_cam_.openCameraSerNo(id)) {
       ROS_ERROR("Failed to open uEye camera with serialNo: %u.", id);

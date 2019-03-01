@@ -3,16 +3,17 @@
 <launch>
 
 	<!-- see cfg/mono.cfg for detail -->
+	<arg name="cam_serial"                default="0" />
 	<arg name="device_id"		              default="1" />
 	<arg name="camera_id"		              default="0" />
 	<arg name="namespace"                 default="camera" />
 	<arg name="auto_exposure"	            default="true" />
-	<arg name="auto_exposure_reference"	  default="88" />
+	<arg name="auto_exposure_reference"	  default="128" />
 	<arg name="auto_exposure_max"	        default="10.0" />
 	<arg name="auto_exposure_speed"	      default="50" />
 	<arg name="auto_exposure_hysteresis"	default="2" />
 	<arg name="auto_exposure_skip_frames"	default="0" />
-	<arg name="auto_gain"		              default="true" />
+	<arg name="auto_gain"		              default="false" />
 	<arg name="color"		                  default="0" /> <!-- 0:MONO8, 1:MONO16, 2:YUV, 3:YCbCr, 4:BGR5, 5:BGR565, 6:BGR8, 7:BGRA8, 9:BGRY8, 9:RGB8, 10:RGBA8, 11, RGBY8 -->
 	<arg name="config_path"		            default="" />
 	<arg name="exposure_time"	            default="1" /> <!-- 85 -->
@@ -28,11 +29,11 @@
 	<arg name="zoom"		                  default="1" />
 	<arg name="software_binning"	        default="true" />
 	<arg name="camera_namespace"          default="$(arg namespace)$(arg device_id)" />
-	<arg name="AOI_Height"		            default="1216" />
+	<arg name="AOI_Height"		            default="840" />
 	<arg name="AOI_Width"		              default="1936" />
 	<arg name="AOI_Y"		                  default="0" />
 	<arg name="AOI_X"		                  default="0" />
-	<arg name="brightness_AOI_Height"		  default="1216" />
+	<arg name="brightness_AOI_Height"		  default="400" />
 	<arg name="brightness_AOI_Width"		  default="1936" />
 	<arg name="brightness_AOI_Y"		      default="0" />
 	<arg name="brightness_AOI_X"		      default="0" />
@@ -42,6 +43,7 @@
 		<node pkg="nodelet" type="nodelet" name="ueye_manager" args="manager" output="screen"/> <!-- launch-prefix="gdb -ex run -args" -->
  
 		<node pkg="nodelet" type="nodelet" name="camera_nodelet" args="load ueye/CameraNodelet ueye_manager" >
+		  <param name="serialNo" type="str"       value="$(arg cam_serial)" />
 			<param name="deviceId"		              value="$(arg device_id)" />
 			<param name="cameraId"		              value="$(arg camera_id)" />
 			<param name="auto_exposure"	            value="$(arg auto_exposure)" />
