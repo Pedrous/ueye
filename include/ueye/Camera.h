@@ -271,6 +271,7 @@ private:
   INT GetImageSeqNum (char* pbuf);
   void SaveExposureAndGain();
   bool LoadExposureAndGain( ros::Time now, double& exposure, unsigned int& gain );
+  void clearExposureGainList();
   
   IS_RECT aoi_;
   IS_RECT brightness_aoi_;

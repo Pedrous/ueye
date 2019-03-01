@@ -1078,6 +1078,8 @@ void Camera::captureThread(CamCaptureCB callback)
       //ROS_INFO("dataList Size %d", dataList_.size());
     }*/ 
   }
+  // Clear the polled exposure and gain values remaining in the list
+  clearExposureGainList();
   
   // Stop thread pool and join threads
   ioService.stop();
@@ -1126,8 +1128,8 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     }
   
     std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
-    double exposure;
-    unsigned int gain;
+    double exposure = 0;
+    unsigned int gain = 0;
     LoadExposureAndGain( stamp, exposure, gain );
     callback(img_mem, size, stamp, !IoStatus[0], exposure); // gain, ImageInfo.u64FrameNumber);
   }
@@ -1166,20 +1168,62 @@ void Camera::SaveExposureAndGain() {
 bool Camera::LoadExposureAndGain( ros::Time now, double& exposure, unsigned int& gain) {
   boost::mutex::scoped_lock lock(mutex);
   if ( !ExposureGainList_.empty() ) {
+    int placeholder = -1;
+    int ms_min = 1e3*1.0/frame_rate_ + 1;
+    //ROS_INFO("frame_rate: %f, nsec min: %d", frame_rate_, nsec_min);
     for (int i = 0; i < ExposureGainList_.size(); i++) {
-      if ( (now - ExposureGainList_[i].stamp).nsec < 1250000 )
-        ROS_INFO("placeholder is %d", i);
+      ros::Duration diff = now - ExposureGainList_[i].stamp;
+      if ( diff.sec == 0 ) {
+        int ms = abs( diff.nsec / 1000000);
+        if ( ms <= ms_min ) {
+          ms_min = ms;
+          placeholder = i;
+        }
+      }
     }
     
-    exposure = ExposureGainList_[0].exposure;
-    gain = ExposureGainList_[0].gain;
-    //dataList_.erase(dataList_.begin());
-    return true;
+    if (placeholder > -1) {
+      ROS_INFO("list length: %d, placeholder is %d, ms_min: %d", ExposureGainList_.size(), placeholder, ms_min);
+      exposure = ExposureGainList_[placeholder].exposure;
+      gain = ExposureGainList_[placeholder].gain;
+      ExposureGainList_.erase(ExposureGainList_.begin());
+      
+      return true;
+    }
+    else {
+      ROS_INFO("NOT FOUND, ms_min: %d", ms_min);
+      for (int i = 0; i < ExposureGainList_.size(); i++) {
+        ros::Duration diff = now - ExposureGainList_[i].stamp;
+        if ( diff.sec == 0 ) {
+          int ms = diff.nsec / 1000000;
+          ROS_INFO("place %d: %d ms, %d ns", i, ms, diff.nsec);
+        }
+      }
+      return false;
+    }
+    
+    //exposure = ExposureGainList_[0].exposure;
+    //gain = ExposureGainList_[0].gain;
+    //ExposureGainList_.erase(ExposureGainList_.begin());
+    //return true;
   }
     
   else
     return false;
 }
+
+void Camera::clearExposureGainList() {
+  boost::mutex::scoped_lock lock(mutex);
+  ExposureGainList_.clear();
+}
+
+/*bool Camera::removeFirstElementOfExposureGainList()
+{
+  checkError( is_UnlockSeqBuf(cam_, dataList_[0].imgID, dataList_[0].img_mem) );
+  //ROS_INFO("is_UnlockSeqBuf Success");
+  boost::mutex::scoped_lock lock(mutex);
+  dataList_.erase(dataList_.begin());
+}*/
 
 /*bool Camera::getImageDataFromList(char **frame, size_t& size, ros::Time& stamp, int& pps, double& exposure, int& count)
 {
