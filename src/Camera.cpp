@@ -1131,7 +1131,7 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     double exposure = 0;
     unsigned int gain = 0;
     GetExposureGain( stamp, exposure, gain );
-    ROS_INFO("time elapsed: %f", (received - stamp).nsec/1000000.0 );
+    //ROS_INFO("time elapsed: %f", (received - stamp).nsec/1000000.0 );
     callback(img_mem, size, stamp, !IoStatus[0], exposure); // gain, ImageInfo.u64FrameNumber);
   }
   
@@ -1268,11 +1268,18 @@ void Camera::GetExposureGain( ros::Time trigger_time, double& exposure, unsigned
     //int nsec_min = 1e9*1.0/frame_rate_;
     //ROS_INFO("frame_rate: %f, nsec min: %d", frame_rate_, nsec_min);
     //std::vector<ExposureGainStruct>::reverse_iterator best_it;
-    //int i = 0;
+    int i = 0;
+    int prev = int(round(ExposureGainList_[0].stamp.nsec/1000000.0)) - 1;
     //for (std::vector<ExposureGainStruct>::iterator it = ExposureGainList_.begin(); it != ExposureGainList_.end(); ++it ) {
     for (auto element : ExposureGainList_) {
-      ROS_INFO("list length: %d, element: %d, time: %d.%09d", ExposureGainList_.size(), i, element.stamp.sec, element.stamp.nsec );
+      int stamp = int(round(element.stamp.nsec/1000000.0));
+      //ROS_INFO("list length: %d, element: %d, time: %f", ExposureGainList_.size(), i, round(element.stamp.nsec/1000000.0) );
       i++;
+      if ( (stamp - prev) != 1 ) {
+        if ( (stamp - prev) != -999 )
+          ROS_INFO("ERROR: %d", stamp - prev);
+      }
+      prev = stamp;
       //ros::Duration diff = trigger_time - element.stamp;
       //ROS_INFO("list length: %d, element: %d, diff: %f", ExposureGainList_.size(), i, diff.nsec/1000000.0 );
       //int nsec = abs( diff.nsec );
@@ -1291,19 +1298,27 @@ void Camera::GetExposureGain( ros::Time trigger_time, double& exposure, unsigned
 }
 
 void Camera::PollExposureGain() {
+  bool LOCK = false;
   while (!stop_capture_) {
-    ROS_INFO("LIST SIZE: %d", ExposureGainList_.size() );
+    //ROS_INFO("LIST SIZE: %d", ExposureGainList_.size() );
     ros::Time now = ros::Time::now();
-    if ( now.nsec < 50000 || now.nsec > 950000 ) {
+    int usec = now.nsec % 1000000;
+    
+    if ( usec < 500000 && !LOCK ) {
       boost::mutex::scoped_lock lock(mutex);
       {
         ExposureGainList_.push_back({now, getExposure(), getHardwareGain()});
       }
-      usleep(950);
+      
+      LOCK = true;
+      //ROS_INFO("IF, Time %d.%09d, %d usecs", now.sec, now.nsec, usec);
+    }
+    else if ( usec >= 500000 && LOCK) {
+      LOCK = false;
     }
     else {
-      int usec_to_sleep = 1000 - now.nsec / 1000;
-      usleep( usec_to_sleep );
+      //ROS_INFO("ELSE, Time %d.%09d, %d usecs", now.sec, now.nsec, usec);
+      usleep( 20 );
     }
   }
 }
