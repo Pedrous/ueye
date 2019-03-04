@@ -1094,7 +1094,7 @@ void Camera::captureThread(CamCaptureCB callback)
 }
 
 void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB callback) {
-
+  ros::Time received = ros::Time::now();
   //double exposure = getExposure();
   //unsigned int gain = getHardwareGain();
   //SaveExposureAndGain();
@@ -1130,7 +1130,8 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
     double exposure = 0;
     unsigned int gain = 0;
-    GetExposureGain( stamp, exposure, gain );
+    //GetExposureGain( stamp, exposure, gain );
+    ROS_INFO("time elapsed: %f", (received - stamp).nsec/1000000.0 );
     callback(img_mem, size, stamp, !IoStatus[0], exposure); // gain, ImageInfo.u64FrameNumber);
   }
   
@@ -1267,17 +1268,18 @@ void Camera::GetExposureGain( ros::Time trigger_time, double& exposure, unsigned
     int nsec_min = 1e9*1.0/frame_rate_;
     //ROS_INFO("frame_rate: %f, nsec min: %d", frame_rate_, nsec_min);
     std::vector<ExposureGainStruct>::reverse_iterator best_it;
-    for (std::vector<ExposureGainStruct>::reverse_iterator it = ExposureGainList_.rbegin(); it != ExposureGainList_.rend(); ++it ) {
+    int i = 0;
+    for (std::vector<ExposureGainStruct>::iterator it = ExposureGainList_.begin(); it != ExposureGainList_.end(); ++it ) {
+      i++;
       ros::Duration diff = trigger_time - it->stamp;
+      //ROS_INFO("list length: %d, element: %d, diff: %f", ExposureGainList_.size(), i, diff.nsec/1000000.0 );
       //int nsec = abs( diff.nsec );
-      if ( diff.nsec > 500000 ) {
+      if ( diff.nsec <= 10000000 ) {
         //best_it = it;
-        ROS_INFO("list length before: %d", ExposureGainList_.size() );
-        ROS_INFO("found diff: %d", diff.nsec);
+        ROS_INFO("list length: %d, element: %d, diff: %f", ExposureGainList_.size(), i, diff.nsec/1000000.0 );
         exposure = it->exposure;
         gain = it->gain;
-        ExposureGainList_.erase( ExposureGainList_.begin(), std::next(it).base() );
-        ROS_INFO("list length after: %d\n", ExposureGainList_.size() );
+        ExposureGainList_.erase( ExposureGainList_.begin(), it );
         
         break;
       }
