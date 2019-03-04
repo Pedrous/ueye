@@ -302,7 +302,7 @@ private:
   SENSORINFO cam_info_;
   unsigned int serial_number_;
   //std::vector<imageDataStruct> dataList_;
-  circular_buffer ExposureGainList_{30};
+  circular_buffer ExposureGainList_{5};
   bool trigger;
 
   volatile bool streaming_;

@@ -1094,10 +1094,10 @@ void Camera::captureThread(CamCaptureCB callback)
 }
 
 void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB callback) {
-  ros::Time received = ros::Time::now();
+  //ros::Time received = ros::Time::now();
   //double exposure = getExposure();
   //unsigned int gain = getHardwareGain();
-  //SaveExposureAndGain();
+  SaveExposureAndGain();
   
   auto now = std::chrono::system_clock::now();
   auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
@@ -1130,7 +1130,8 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
     double exposure = 0;
     unsigned int gain = 0;
-    GetExposureGain( stamp, exposure, gain );
+    //GetExposureGain( stamp, exposure, gain );
+    LoadExposureAndGain( stamp, exposure, gain );
     //ROS_INFO("time elapsed: %f", (received - stamp).nsec/1000000.0 );
     callback(img_mem, size, stamp, !IoStatus[0], exposure); // gain, ImageInfo.u64FrameNumber);
   }
@@ -1170,21 +1171,25 @@ bool Camera::LoadExposureAndGain( ros::Time trigger_time, double& exposure, unsi
   boost::mutex::scoped_lock lock(mutex);
   if ( !ExposureGainList_.empty() ) {
     int placeholder = -1;
-    int ms_min = 1e3*1.0/frame_rate_ + 1;
+    //is_GetFramesPerSecond (HIDS hCam, double* dblFPS)
+    double period_ms = 1.0/frame_rate_;
     //ROS_INFO("frame_rate: %f, nsec min: %d", frame_rate_, nsec_min);
-    for (int i = 0; i < ExposureGainList_.size(); i++) {
+    for (int i = 1; i < ExposureGainList_.size(); i++) {
       ros::Duration diff = trigger_time - ExposureGainList_[i].stamp;
       if ( diff.sec == 0 ) {
-        int ms = abs( diff.nsec / 1000000);
-        if ( ms <= ms_min ) {
-          ms_min = ms;
+        int ms = round( diff.nsec / 1000000.0);
+        if ( ms >= 0 ) {//&& ms <= period_ms ) {
+          //ms_min = ms;
           placeholder = i;
+          break;
         }
       }
+      else
+        ROS_INFO("difference more than 1 second!!!!!");
     }
     
     if (placeholder > -1) {
-      ROS_INFO("list length: %d, placeholder is %d, ms_min: %d", ExposureGainList_.size(), placeholder, ms_min);
+      ROS_INFO("list length: %d, placeholder is %d, ms_min: %d", ExposureGainList_.size(), placeholder, period_ms);
       exposure = ExposureGainList_[placeholder].exposure;
       gain = ExposureGainList_[placeholder].gain;
       ExposureGainList_.erase(ExposureGainList_.begin());
@@ -1192,7 +1197,7 @@ bool Camera::LoadExposureAndGain( ros::Time trigger_time, double& exposure, unsi
       return true;
     }
     else {
-      ROS_INFO("NOT FOUND, ms_min: %d", ms_min);
+      ROS_INFO("NOT FOUND, ms_min: %d", period_ms);
       for (int i = 0; i < ExposureGainList_.size(); i++) {
         ros::Duration diff = trigger_time - ExposureGainList_[i].stamp;
         if ( diff.sec == 0 ) {
