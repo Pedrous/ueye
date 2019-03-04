@@ -1265,21 +1265,22 @@ void Camera::GetExposureGain( ros::Time trigger_time, double& exposure, unsigned
   boost::mutex::scoped_lock lock(mutex);
   if ( !ExposureGainList_.empty() ) {
     //int placeholder = -1;
-    int nsec_min = 1e9*1.0/frame_rate_;
+    //int nsec_min = 1e9*1.0/frame_rate_;
     //ROS_INFO("frame_rate: %f, nsec min: %d", frame_rate_, nsec_min);
-    std::vector<ExposureGainStruct>::reverse_iterator best_it;
+    //std::vector<ExposureGainStruct>::reverse_iterator best_it;
     int i = 0;
-    for (std::vector<ExposureGainStruct>::iterator it = ExposureGainList_.begin(); it != ExposureGainList_.end(); ++it ) {
+    //for (std::vector<ExposureGainStruct>::iterator it = ExposureGainList_.begin(); it != ExposureGainList_.end(); ++it ) {
+    for (auto element : ExposureGainList_) {
       i++;
-      ros::Duration diff = trigger_time - it->stamp;
+      ros::Duration diff = trigger_time - element.stamp;
       //ROS_INFO("list length: %d, element: %d, diff: %f", ExposureGainList_.size(), i, diff.nsec/1000000.0 );
       //int nsec = abs( diff.nsec );
-      if ( diff.nsec <= 10000000 ) {
+      if ( diff.nsec < 1000000 ) {
         //best_it = it;
         ROS_INFO("list length: %d, element: %d, diff: %f", ExposureGainList_.size(), i, diff.nsec/1000000.0 );
-        exposure = it->exposure;
-        gain = it->gain;
-        ExposureGainList_.erase( ExposureGainList_.begin(), it );
+        exposure = element.exposure;
+        gain = element.gain;
+        //ExposureGainList_.erase( ExposureGainList_.begin(), it );
         
         break;
       }

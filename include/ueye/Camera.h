@@ -48,6 +48,7 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/bind.hpp>
 #include <boost/thread/thread.hpp>
+#include <boost/circular_buffer.hpp>
 #include <chrono>
 
 namespace ueye
@@ -69,6 +70,8 @@ struct ExposureGainStruct {
   double exposure;
   unsigned int gain;
 };
+
+typedef boost::circular_buffer<ExposureGainStruct> circular_buffer;
 
 struct uEyeException : public std::runtime_error
 {
@@ -299,7 +302,7 @@ private:
   SENSORINFO cam_info_;
   unsigned int serial_number_;
   //std::vector<imageDataStruct> dataList_;
-  std::vector<ExposureGainStruct> ExposureGainList_;
+  circular_buffer ExposureGainList_{30};
   bool trigger;
 
   volatile bool streaming_;
