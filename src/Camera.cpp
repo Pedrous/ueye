@@ -1271,10 +1271,12 @@ void Camera::GetExposureGain( ros::Time trigger_time, double& exposure, unsigned
     //int i = 0;
     //for (std::vector<ExposureGainStruct>::iterator it = ExposureGainList_.begin(); it != ExposureGainList_.end(); ++it ) {
     for (auto element : ExposureGainList_) {
-      ros::Duration diff = trigger_time - element.stamp;
+      ROS_INFO("list length: %d, element: %d, time: %d.%09d", ExposureGainList_.size(), i, element.stamp.sec, element.stamp.nsec );
+      i++;
+      //ros::Duration diff = trigger_time - element.stamp;
       //ROS_INFO("list length: %d, element: %d, diff: %f", ExposureGainList_.size(), i, diff.nsec/1000000.0 );
       //int nsec = abs( diff.nsec );
-      if ( diff.nsec < 1500000 ) {
+      /*if ( diff.nsec < 1000000 ) {
         //best_it = it;
         //ROS_INFO("list length: %d, element: %d, diff: %f", ExposureGainList_.size(), i, diff.nsec/1000000.0 );
         exposure = element.exposure;
@@ -1283,18 +1285,26 @@ void Camera::GetExposureGain( ros::Time trigger_time, double& exposure, unsigned
         //ExposureGainList_.erase( ExposureGainList_.begin(), it );
         
         break;
-      }
+      }*/
     }
   }
 }
 
 void Camera::PollExposureGain() {
   while (!stop_capture_) {
-    boost::mutex::scoped_lock lock(mutex);
-    {
-      ExposureGainList_.push_back({ros::Time::now(), getExposure(), getHardwareGain()});
+    ROS_INFO("LIST SIZE: %d", ExposureGainList_.size() );
+    ros::Time now = ros::Time::now();
+    if ( now.nsec < 50000 || now.nsec > 950000 ) {
+      boost::mutex::scoped_lock lock(mutex);
+      {
+        ExposureGainList_.push_back({now, getExposure(), getHardwareGain()});
+      }
+      usleep(950);
     }
-    usleep(1000);
+    else {
+      int usec_to_sleep = 1000 - now.nsec / 1000;
+      usleep( usec_to_sleep );
+    }
   }
 }
 
