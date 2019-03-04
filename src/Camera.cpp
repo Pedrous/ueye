@@ -1097,7 +1097,7 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
 
   //double exposure = getExposure();
   //unsigned int gain = getHardwareGain();
-  SaveExposureAndGain();
+  //SaveExposureAndGain();
   
   auto now = std::chrono::system_clock::now();
   auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
@@ -1130,7 +1130,7 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
     double exposure = 0;
     unsigned int gain = 0;
-    LoadExposureAndGain( stamp, exposure, gain );
+    GetExposureGain( stamp, exposure, gain );
     callback(img_mem, size, stamp, !IoStatus[0], exposure); // gain, ImageInfo.u64FrameNumber);
   }
   
@@ -1165,14 +1165,14 @@ void Camera::SaveExposureAndGain() {
   ExposureGainList_.push_back({ros::Time::now(), getExposure(), getHardwareGain()});
 }
 
-bool Camera::LoadExposureAndGain( ros::Time now, double& exposure, unsigned int& gain) {
+bool Camera::LoadExposureAndGain( ros::Time trigger_time, double& exposure, unsigned int& gain) {
   boost::mutex::scoped_lock lock(mutex);
   if ( !ExposureGainList_.empty() ) {
     int placeholder = -1;
     int ms_min = 1e3*1.0/frame_rate_ + 1;
     //ROS_INFO("frame_rate: %f, nsec min: %d", frame_rate_, nsec_min);
     for (int i = 0; i < ExposureGainList_.size(); i++) {
-      ros::Duration diff = now - ExposureGainList_[i].stamp;
+      ros::Duration diff = trigger_time - ExposureGainList_[i].stamp;
       if ( diff.sec == 0 ) {
         int ms = abs( diff.nsec / 1000000);
         if ( ms <= ms_min ) {
@@ -1193,7 +1193,7 @@ bool Camera::LoadExposureAndGain( ros::Time now, double& exposure, unsigned int&
     else {
       ROS_INFO("NOT FOUND, ms_min: %d", ms_min);
       for (int i = 0; i < ExposureGainList_.size(); i++) {
-        ros::Duration diff = now - ExposureGainList_[i].stamp;
+        ros::Duration diff = trigger_time - ExposureGainList_[i].stamp;
         if ( diff.sec == 0 ) {
           int ms = diff.nsec / 1000000;
           ROS_INFO("place %d: %d ms, %d ns", i, ms, diff.nsec);
@@ -1260,18 +1260,57 @@ bool Camera::removeFromList()
   dataList_.erase(dataList_.begin());
 }*/
 
+void Camera::GetExposureGain( ros::Time trigger_time, double& exposure, unsigned int& gain) {
+  boost::mutex::scoped_lock lock(mutex);
+  if ( !ExposureGainList_.empty() ) {
+    //int placeholder = -1;
+    int nsec_min = 1e9*1.0/frame_rate_;
+    //ROS_INFO("frame_rate: %f, nsec min: %d", frame_rate_, nsec_min);
+    std::vector<ExposureGainStruct>::reverse_iterator best_it;
+    for (std::vector<ExposureGainStruct>::reverse_iterator it = ExposureGainList_.rbegin(); it != ExposureGainList_.rend(); ++it ) {
+      ros::Duration diff = trigger_time - it->stamp;
+      //int nsec = abs( diff.nsec );
+      if ( diff.nsec > 500000 ) {
+        //best_it = it;
+        ROS_INFO("list length before: %d", ExposureGainList_.size() );
+        ROS_INFO("found diff: %d", diff.nsec);
+        exposure = it->exposure;
+        gain = it->gain;
+        ExposureGainList_.erase( ExposureGainList_.begin(), std::next(it).base() );
+        ROS_INFO("list length after: %d\n", ExposureGainList_.size() );
+        
+        break;
+      }
+    }
+  }
+}
+
+void Camera::PollExposureGain() {
+  while (!stop_capture_) {
+    boost::mutex::scoped_lock lock(mutex);
+    {
+      ExposureGainList_.push_back({ros::Time::now(), getExposure(), getHardwareGain()});
+    }
+    usleep(1000);
+  }
+}
+
 void Camera::startVideoCapture(CamCaptureCB callback)
 {
   stream_callback_ = callback;
   //clearList();
-  thread_ = boost::thread(&Camera::captureThread, this, callback);
+  captureThread_ = boost::thread(&Camera::captureThread, this, callback);
+  pollExposureGainThread_ = boost::thread(&Camera::PollExposureGain, this);
 }
 void Camera::stopVideoCapture()
 {
   stop_capture_ = true;
-  if (thread_.joinable()) {
+  if (pollExposureGainThread_.joinable()) {
+    pollExposureGainThread_.join();
+  }
+  if (captureThread_.joinable()) {
     forceTrigger();
-    thread_.join();
+    captureThread_.join();
   }
 }
 void Camera::restartVideoCapture()

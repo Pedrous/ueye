@@ -270,8 +270,11 @@ private:
   INT GetImageID (char* pbuf);
   INT GetImageSeqNum (char* pbuf);
   void SaveExposureAndGain();
-  bool LoadExposureAndGain( ros::Time now, double& exposure, unsigned int& gain );
+  bool LoadExposureAndGain( ros::Time trigger_time, double& exposure, unsigned int& gain );
   void clearExposureGainList();
+  void GetExposureGain( ros::Time trigger_time, double& exposure, unsigned int& gain);
+  void PollExposureGain();
+  
   
   IS_RECT aoi_;
   IS_RECT brightness_aoi_;
@@ -302,7 +305,8 @@ private:
   volatile bool streaming_;
   volatile bool stop_capture_;
   CamCaptureCB stream_callback_;
-  boost::thread thread_;
+  boost::thread captureThread_;
+  boost::thread pollExposureGainThread_;
 
   bool extended_pixel_clock_;
   IS_MULTI_AOI_CONTAINER * m_psMultiAOIs = new IS_MULTI_AOI_CONTAINER;
