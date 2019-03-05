@@ -46,6 +46,10 @@
 #include <time.h>
 #include <stdlib.h>
 
+#include <unistd.h>
+#include <sched.h>
+#include <cstdio>
+
 // Check expected uEye SDK version in ueye.h for supported architectures
 #if defined(__i386) || defined(__i386__) || defined(_M_IX86)
   #define EXPECTED_VERSION_MAJOR 4
@@ -1133,7 +1137,7 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     //GetExposureGain( stamp, exposure, gain );
     LoadExposureAndGain( stamp, exposure, gain );
     //ROS_INFO("time elapsed: %f", (received - stamp).nsec/1000000.0 );
-    callback(img_mem, size, stamp, !IoStatus[0], exposure); // gain, ImageInfo.u64FrameNumber);
+    callback(img_mem, size, stamp, !IoStatus[0], exposure, gain, ImageInfo.u64FrameNumber);
   }
   
   int img_seq_num = GetImageSeqNum(img_mem);
@@ -1164,49 +1168,54 @@ INT Camera::GetImageSeqNum (char* pbuf) {
 
 void Camera::SaveExposureAndGain() {
   boost::mutex::scoped_lock lock(mutex);
+  /*if ( !ExposureGainList_.empty() ) {
+    ros::Duration diff = ros::Time::now() - ExposureGainList_.back().stamp;
+    if (diff.nsec > 6000000)
+      ROS_INFO("difference of last two: %.2f", diff.nsec/1000000.0);
+  }*/
   ExposureGainList_.push_back({ros::Time::now(), getExposure(), getHardwareGain()});
 }
 
 bool Camera::LoadExposureAndGain( ros::Time trigger_time, double& exposure, unsigned int& gain) {
   boost::mutex::scoped_lock lock(mutex);
   if ( !ExposureGainList_.empty() ) {
+    exposure = ExposureGainList_[0].exposure;
+    gain = ExposureGainList_[0].gain;
+  }
+  /*if ( !ExposureGainList_.empty() ) {
     int placeholder = -1;
     //is_GetFramesPerSecond (HIDS hCam, double* dblFPS)
-    double period_ms = 1.0/frame_rate_;
+    double period_ms = 1500.0/frame_rate_;
     //ROS_INFO("frame_rate: %f, nsec min: %d", frame_rate_, nsec_min);
-    for (int i = 1; i < ExposureGainList_.size(); i++) {
+    for (int i = 0; i < ExposureGainList_.size(); i++) {
       ros::Duration diff = trigger_time - ExposureGainList_[i].stamp;
-      if ( diff.sec == 0 ) {
-        int ms = round( diff.nsec / 1000000.0);
-        if ( ms >= 0 ) {//&& ms <= period_ms ) {
-          //ms_min = ms;
-          placeholder = i;
-          break;
-        }
+      int ms = round( diff.nsec / 1000000.0);
+      if ( ms >= 0 && ms <= period_ms ) {
+        period_ms = ms;
+        placeholder = i;
+        break;
       }
-      else
-        ROS_INFO("difference more than 1 second!!!!!");
     }
     
     if (placeholder > -1) {
-      ROS_INFO("list length: %d, placeholder is %d, ms_min: %d", ExposureGainList_.size(), placeholder, period_ms);
+      //ROS_INFO("list length: %d, placeholder is %d, ms_min: %f", ExposureGainList_.size(), placeholder, period_ms);
       exposure = ExposureGainList_[placeholder].exposure;
       gain = ExposureGainList_[placeholder].gain;
-      ExposureGainList_.erase(ExposureGainList_.begin());
+      //ExposureGainList_.erase(ExposureGainList_.begin());
       
       return true;
     }
     else {
-      ROS_INFO("NOT FOUND, ms_min: %d", period_ms);
+      //ROS_INFO("NOT FOUND, ms_min: %f", period_ms);
       for (int i = 0; i < ExposureGainList_.size(); i++) {
         ros::Duration diff = trigger_time - ExposureGainList_[i].stamp;
         if ( diff.sec == 0 ) {
-          int ms = diff.nsec / 1000000;
-          ROS_INFO("place %d: %d ms, %d ns", i, ms, diff.nsec);
+          double ms = diff.nsec / 1000000.0;
+          //ROS_INFO("place %d: %f ms, %d ns", i, ms, diff.nsec);
         }
       }
       return false;
-    }
+    }*/
     
     //exposure = ExposureGainList_[0].exposure;
     //gain = ExposureGainList_[0].gain;
@@ -1328,19 +1337,95 @@ void Camera::PollExposureGain() {
   }
 }
 
+void Camera::displayAndChange(boost::thread& daThread) {
+  int retcode;
+  int policy;
+
+  pthread_t threadID = (pthread_t) daThread.native_handle();
+
+  struct sched_param param;
+
+  if ((retcode = pthread_getschedparam(threadID, &policy, &param)) != 0)
+  {
+      errno = retcode;
+      perror("pthread_getschedparam");
+      exit(EXIT_FAILURE);
+  }
+
+  std::cout << "INHERITED: ";
+  std::cout << "policy=" << ((policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                             (policy == SCHED_RR)    ? "SCHED_RR" :
+                             (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                                                       "???")
+            << ", priority=" << param.sched_priority << std::endl;
+
+
+  policy = SCHED_FIFO;
+  param.sched_priority = 4;
+
+  if ((retcode = pthread_setschedparam(threadID, policy, &param)) != 0)
+  {
+      errno = retcode;
+      perror("pthread_setschedparam");
+      exit(EXIT_FAILURE);
+  }
+
+  std::cout << "  CHANGED: ";
+  std::cout << "policy=" << ((policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                             (policy == SCHED_RR)    ? "SCHED_RR" :
+                             (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                                                        "???")
+            << ", priority=" << param.sched_priority << std::endl;
+}
+
 void Camera::startVideoCapture(CamCaptureCB callback)
 {
   stream_callback_ = callback;
-  //clearList();
+  
+  /*int policy, res;
+
+  struct sched_param param;
+
+  if ((policy = sched_getscheduler(getpid())) == -1)
+  {
+      perror("sched_getscheduler");
+      exit(EXIT_FAILURE);
+  }
+
+  if ((res = sched_getparam(getpid(), &param)) == -1)
+  {
+      perror("sched_getparam");
+      exit(EXIT_FAILURE);
+  }
+
+  std::cout << " ORIGINAL: ";
+  std::cout << "policy=" << ((policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                             (policy == SCHED_RR)    ? "SCHED_RR" :
+                             (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                                                        "???")
+            << ", priority=" << param.sched_priority << std::endl;
+
+
+  policy = SCHED_RR;
+  param.sched_priority = 2;
+
+  if ((res = sched_setscheduler(getpid(), policy, &param)) == -1)
+  {
+      perror("sched_setscheduler");
+      exit(EXIT_FAILURE);
+  }*/
+  
   captureThread_ = boost::thread(&Camera::captureThread, this, callback);
-  pollExposureGainThread_ = boost::thread(&Camera::PollExposureGain, this);
+  
+  //displayAndChange( captureThread_ );
+  //pollExposureGainThread_ = boost::thread(&Camera::PollExposureGain, this);
 }
 void Camera::stopVideoCapture()
 {
   stop_capture_ = true;
-  if (pollExposureGainThread_.joinable()) {
+  /*if (pollExposureGainThread_.joinable()) {
     pollExposureGainThread_.join();
-  }
+  }*/
   if (captureThread_.joinable()) {
     forceTrigger();
     captureThread_.join();

@@ -97,7 +97,7 @@ private:
   void loadIntrinsics();
   //sensor_msgs::ImagePtr processFrame(const char *frame, size_t size, sensor_msgs::CameraInfoPtr &info);
   sensor_msgs::ImagePtr processFrame(const char *frame, size_t size, sensor_msgs::CameraInfoPtr &info, sensor_msgs::CameraInfo &msg_info);
-  void publishImage(const char *frame, size_t size, ros::Time stamp, int pps, double exposure);
+  void publishImage(const char *frame, size_t size, ros::Time stamp, int pps, double exposure, unsigned int gain, unsigned long long frame_count);
   //void publishImagefromList();
   void startCamera();
   void stopCamera();

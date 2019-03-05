@@ -234,7 +234,7 @@ public:
 
   bool forceTrigger();
 
-  typedef boost::function<void(const char *, size_t, ros::Time, int, double)> CamCaptureCB;
+  typedef boost::function<void(const char *, size_t, ros::Time, int, double, unsigned int, unsigned long long)> CamCaptureCB;
   void startVideoCapture(CamCaptureCB);
   void stopVideoCapture();
 
@@ -302,7 +302,7 @@ private:
   SENSORINFO cam_info_;
   unsigned int serial_number_;
   //std::vector<imageDataStruct> dataList_;
-  circular_buffer ExposureGainList_{5};
+  circular_buffer ExposureGainList_{6};
   bool trigger;
 
   volatile bool streaming_;
@@ -318,6 +318,7 @@ private:
   
   // Added by me for debugging
   UEYEIMAGEINFO PrevImageInfo;
+  void displayAndChange(boost::thread& daThread);
 };
 } //namespace ueye
 

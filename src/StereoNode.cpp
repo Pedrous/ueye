@@ -780,7 +780,7 @@ void StereoNode::BinImg(sensor_msgs::ImagePtr &msg)
 }
 
 // Timestamp and publish the image. Called by the streaming thread.
-void StereoNode::publishImageL(const char *frame, size_t size, ros::Time stamp, int pps, double exposure)
+void StereoNode::publishImageL(const char *frame, size_t size, ros::Time stamp, int pps, double exposure, unsigned int gain, unsigned long long frame_count)
 {
   //ros::Time stamp = ros::Time::now();  
   //boost::lock_guard<boost::mutex> lock(mutex_);
@@ -821,6 +821,8 @@ void StereoNode::publishImageL(const char *frame, size_t size, ros::Time stamp, 
     else
       l_exposure_ = exposure_time_;
     
+    left_extras_.gain = gain;
+    left_extras_.frame_count = frame_count;
     left_extras_.header.stamp = l_msg_camera_info_.header.stamp;
     l_pub_extras_.publish(left_extras_);
   }
@@ -837,7 +839,7 @@ void StereoNode::publishImageL(const char *frame, size_t size, ros::Time stamp, 
   l_pub_stream_.publish(img, info);
   //ROS_INFO("Left Camera GPIO input: %d", l_cam_.getGPIOConfiguration() );
 }
-void StereoNode::publishImageR(const char *frame, size_t size, ros::Time stamp, int pps, double exposure)
+void StereoNode::publishImageR(const char *frame, size_t size, ros::Time stamp, int pps, double exposure, unsigned int gain, unsigned long long frame_count)
 {
   //ros::Time stamp = ros::Time::now();
       
@@ -873,6 +875,8 @@ void StereoNode::publishImageR(const char *frame, size_t size, ros::Time stamp, 
     else
       r_exposure_ = exposure_time_;
        
+    right_extras_.gain = gain;
+    right_extras_.frame_count = frame_count;
     right_extras_.header.stamp = r_msg_camera_info_.header.stamp;
     r_pub_extras_.publish(right_extras_);
   }
@@ -1093,8 +1097,8 @@ void StereoNode::startCamera()
   if (running_ || !configured_)
     return;
   // These are callback functions that are not used at the moment
-  l_cam_.startVideoCapture(boost::bind(&StereoNode::publishImageL, this, _1, _2, _3, _4, _5));
-  r_cam_.startVideoCapture(boost::bind(&StereoNode::publishImageR, this, _1, _2, _3, _4, _5));
+  l_cam_.startVideoCapture(boost::bind(&StereoNode::publishImageL, this, _1, _2, _3, _4, _5, _6, _7));
+  r_cam_.startVideoCapture(boost::bind(&StereoNode::publishImageR, this, _1, _2, _3, _4, _5, _6, _7));
   stop_publish_ = false;
   l_stamp_ready = false;
   l_img_info_ready = false;
