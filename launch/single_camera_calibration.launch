@@ -19,13 +19,13 @@
 	<arg name="exposure_time"	            default="1" /> <!-- 85 -->
 	<arg name="force_streaming"	          default="false" />
 	<arg name="frame_id"		              default="/camera" />
-	<arg name="frame_rate"		            default="20" /> <!-- 30 -->
+	<arg name="frame_rate"		            default="236" /> <!-- 30 -->
 	<arg name="gain"		                  default="100" /> <!-- 100 -->
 	<arg name="gain_boost"		            default="false" />
 	<arg name="hardware_gamma"	          default="false" />
 	<arg name="pixel_clock"		            default="480" /> <!-- 86 -->
 	<arg name="extended_pixel_clock"		  default="true" />
-	<arg name="trigger"		                default="2" /> <!-- 0:AUTO, 2:HARDWARE_RISING, 3:HARDWARE_FALLING -->
+	<arg name="trigger"		                default="0" /> <!-- 0:AUTO, 2:HARDWARE_RISING, 3:HARDWARE_FALLING -->
 	<arg name="zoom"		                  default="1" />
 	<arg name="software_binning"	        default="true" />
 	<arg name="camera_namespace"          default="$(arg namespace)$(arg device_id)" />
@@ -35,7 +35,7 @@
 	<arg name="AOI_X"		                  default="0" />
 	<arg name="brightness_AOI_Height"		  default="400" />
 	<arg name="brightness_AOI_Width"		  default="1936" />
-	<arg name="brightness_AOI_Y"		      default="0" />
+	<arg name="brightness_AOI_Y"		      default="440" />
 	<arg name="brightness_AOI_X"		      default="0" />
 	<arg name="visualize_brighness_AOI"	  default="false" />
 
