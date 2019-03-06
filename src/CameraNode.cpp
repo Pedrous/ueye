@@ -458,7 +458,7 @@ void CameraNode::reconfig(monoConfig &config, uint32_t level)
     { 
       std::stringstream name;
       std::string file;
-      name << "/home/petrimanninen/Codes/Photo_calibration/ExpCal-" << cam_.getCameraName() << "-" << cam_.getCameraSerialNo() << "-" << order << ".bag";
+      name << "/home/snowflake/Photo_calibration/ExpCal-" << cam_.getCameraName() << "-" << cam_.getCameraSerialNo() << "-" << order << ".bag";
       file = name.str();
       if( access( file.c_str(), F_OK ) == -1 )
       {
@@ -706,7 +706,7 @@ void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, i
     BinImg(img);
   
   exposure_calib_.header = img->header;
-  exposure_calib_.exp_time = exposure_;
+  //exposure_calib_.exp_time = exposure_;
   pub_exposure_.publish(exposure_calib_);
   pub_stream_.publish(img, info);
   if (cal_exp_2_)
