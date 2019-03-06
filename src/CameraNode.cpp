@@ -746,9 +746,10 @@ void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, i
         ROS_INFO("Left Camera frequency: %d Hz", leftPpsCount);
       leftPpsCount = 0;
     }*/
+    extras_.exposure_time = exposure;
     extras_.gain = gain;
     extras_.frame_count = frame_count;
-    if (auto_exposure_)
+    /*if (auto_exposure_)
       extras_.exposure_time = exposure;
     else
       extras_.exposure_time = exposure_time_;*/

@@ -1215,7 +1215,7 @@ bool Camera::LoadExposureAndGain( ros::Time trigger_time, double& exposure, unsi
         }
       }
       return false;
-    }*/
+    }
     
     //exposure = ExposureGainList_[0].exposure;
     //gain = ExposureGainList_[0].gain;
@@ -1224,7 +1224,7 @@ bool Camera::LoadExposureAndGain( ros::Time trigger_time, double& exposure, unsi
   }
     
   else
-    return false;
+    return false;*/
 }
 
 void Camera::clearExposureGainList() {
