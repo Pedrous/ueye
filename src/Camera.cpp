@@ -1130,7 +1130,25 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     else {
       stamp = ros::Time(seconds_since_epoch.count() - 1, ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000 );
     }
-  
+    
+    // This is added to debug why sometimes the timestamp are the same for 2 consequent images 
+    if ( ImageInfo.TimestampSystem.wMilliseconds == PrevImageInfo.TimestampSystem.wMilliseconds ) {
+      ROS_INFO("Something wrong with the camera timestamps, received two images with the same timestamp.");
+      ROS_INFO("Time of current image %02d:%03d", ImageInfo.TimestampSystem.wSecond, ImageInfo.TimestampSystem.wMilliseconds);
+      ROS_INFO("Time of previous image %02d:%03d", PrevImageInfo.TimestampSystem.wSecond, PrevImageInfo.TimestampSystem.wMilliseconds);
+      if ( ImageInfo.u64FrameNumber == PrevImageInfo.u64FrameNumber )
+        ROS_INFO("Also frame numbers are same, %llu and %llu", ImageInfo.u64FrameNumber, PrevImageInfo.u64FrameNumber);
+      else
+        ROS_INFO("But frame numbers are different");
+    }
+    if ( stamp.nsec == prev_stamp.nsec ) {
+      ROS_INFO("The ROS timestamps can not be correct.");
+      ROS_INFO("Time of current image %d:%09d", stamp.sec, stamp.nsec);
+      ROS_INFO("Time of previous image %d:%09d\n", prev_stamp.sec, prev_stamp.nsec);
+    }
+    PrevImageInfo = ImageInfo;
+    prev_stamp = stamp;
+    
     std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
     double exposure = 0;
     unsigned int gain = 0;

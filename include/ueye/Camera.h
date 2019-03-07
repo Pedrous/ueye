@@ -278,7 +278,6 @@ private:
   void GetExposureGain( ros::Time trigger_time, double& exposure, unsigned int& gain);
   void PollExposureGain();
   
-  
   IS_RECT aoi_;
   IS_RECT brightness_aoi_;
   uEyeColor color_mode_;
@@ -318,6 +317,7 @@ private:
   
   // Added by me for debugging
   UEYEIMAGEINFO PrevImageInfo;
+  ros::Time prev_stamp;
   void displayAndChange(boost::thread& daThread);
 };
 } //namespace ueye
