@@ -688,6 +688,8 @@ bool Camera::setTriggerMode(TriggerMode mode)
         trigger = true;
       else
         trigger = false;
+        
+      return true;
     }
   }
   return false;
@@ -1033,7 +1035,7 @@ void Camera::captureThread(CamCaptureCB callback)
     // Wait for image. Timeout after 2*FramePeriod = (2000ms/FrameRate)
     
     //INT status = is_WaitEvent(cam_, IS_SET_EVENT_FRAME, 1000);
-    INT status = is_WaitForNextImage(cam_, 1000, &img_mem, &img_ID);
+    INT status = is_WaitForNextImage(cam_, 2000, &img_mem, &img_ID);
     if ( IS_SUCCESS == status) {
       // Assign the task for the thread pool
       ioService.post(boost::bind(&Camera::processFrame, this, img_mem, img_ID, size, callback));
@@ -1254,23 +1256,13 @@ void Camera::GetExposureGain( ros::Time trigger_time, double& exposure, unsigned
 }
 
 void Camera::PollExposureGain() {
-  boost::thread eventThread1_ = boost::thread(&Camera::waitForEvent, this, IS_SET_EVENT_AUTOBRIGHTNESS_FINISHED);
-  boost::thread eventThread2_ = boost::thread(&Camera::waitForEvent, this, IS_SET_EVENT_CAMERA_MEMORY);
-  boost::thread eventThread3_ = boost::thread(&Camera::waitForEvent, this, IS_SET_EVENT_EXTTRIG);
-  boost::thread eventThread4_ = boost::thread(&Camera::waitForEvent, this, IS_SET_EVENT_FIRST_PACKET_RECEIVED);
-  boost::thread eventThread5_ = boost::thread(&Camera::waitForEvent, this, IS_SET_EVENT_FRAME);
-  boost::thread eventThread6_ = boost::thread(&Camera::waitForEvent, this, IS_SET_EVENT_FRAME_RECEIVED);
+  boost::thread eventThread_ = boost::thread(&Camera::waitForEvent, this, IS_SET_EVENT_FIRST_PACKET_RECEIVED);
   
   while (!stop_capture_) {
     sleep(1);
   }
   
-  eventThread1_.join();
-  eventThread2_.join();
-  eventThread3_.join();
-  eventThread4_.join();
-  eventThread5_.join();
-  eventThread6_.join();
+  eventThread_.join();
   
   /*bool LOCK = false;
   while (!stop_capture_) {
@@ -1300,8 +1292,8 @@ void Camera::PollExposureGain() {
 void Camera::waitForEvent(INT event) {
   checkError(is_EnableEvent(cam_, event));
   while (!stop_capture_) {
-    if ( is_WaitEvent(cam_, event, 1000) == IS_SUCCESS ) {
-      ROS_INFO("event: %d @ %.3f", event, ros::Time::now().toSec());
+    if ( is_WaitEvent(cam_, event, 2000) == IS_SUCCESS ) {
+      ROS_INFO("serial %02u, first packet received @ %.3f", serial_number_, event, ros::Time::now().toSec());
     }
   }
   checkError(is_DisableEvent(cam_, event));
