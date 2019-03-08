@@ -1076,7 +1076,7 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
   //ros::Time received = ros::Time::now();
   //double exposure = getExposure();
   //unsigned int gain = getHardwareGain();
-  SaveExposureAndGain();
+  //SaveExposureAndGain();
   
   auto now = std::chrono::system_clock::now();
   auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
@@ -1256,13 +1256,19 @@ void Camera::GetExposureGain( ros::Time trigger_time, double& exposure, unsigned
 }
 
 void Camera::PollExposureGain() {
-  boost::thread eventThread_ = boost::thread(&Camera::waitForEvent, this, IS_SET_EVENT_FIRST_PACKET_RECEIVED);
+  INT trigger_count = 0;
   
+  checkError(is_EnableEvent(cam_, IS_SET_EVENT_FIRST_PACKET_RECEIVED));
   while (!stop_capture_) {
-    sleep(1);
+    if ( is_WaitEvent(cam_, IS_SET_EVENT_FIRST_PACKET_RECEIVED, 2000) == IS_SUCCESS ) {
+      ros::Time now = ros::Time::now();
+      is_SetTriggerCounter (cam_, trigger_count);
+      boost::mutex::scoped_lock lock(mutex);
+      ExposureGainList_.push_back({now, getExposure(), getHardwareGain()});
+      ROS_INFO("serial %02u, first packet received @ %.3f, Trigger_count: %d", serial_number_, now.toSec(), trigger_count);
+    }
   }
-  
-  eventThread_.join();
+  checkError(is_DisableEvent(cam_, IS_SET_EVENT_FIRST_PACKET_RECEIVED));
   
   /*bool LOCK = false;
   while (!stop_capture_) {
@@ -1287,16 +1293,6 @@ void Camera::PollExposureGain() {
       usleep( 20 );
     }
   }*/
-}
-
-void Camera::waitForEvent(INT event) {
-  checkError(is_EnableEvent(cam_, event));
-  while (!stop_capture_) {
-    if ( is_WaitEvent(cam_, event, 2000) == IS_SUCCESS ) {
-      ROS_INFO("serial %02u, first packet received @ %.3f", serial_number_, event, ros::Time::now().toSec());
-    }
-  }
-  checkError(is_DisableEvent(cam_, event));
 }
 
 void Camera::displayAndChange(boost::thread& daThread) {

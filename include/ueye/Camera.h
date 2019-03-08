@@ -286,7 +286,7 @@ private:
   HIDS cam_;
   SENSORINFO cam_info_;
   unsigned int serial_number_;
-  circular_buffer ExposureGainList_{6};
+  circular_buffer ExposureGainList_{3};
   bool trigger;
 
   volatile bool streaming_;
@@ -304,7 +304,6 @@ private:
   //UEYEIMAGEINFO PrevImageInfo;
   //ros::Time prev_stamp;
   bool ppsLock;
-  void waitForEvent(INT event);
   void displayAndChange(boost::thread& daThread);
 };
 } //namespace ueye
