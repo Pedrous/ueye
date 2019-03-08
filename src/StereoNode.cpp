@@ -795,7 +795,7 @@ void StereoNode::publishImageL(const char *frame, size_t size, ros::Time stamp, 
   
   //if (left_extras_.pps != right_extras_.pps)
   //  ROS_INFO("Camera PPS not synced!!!!! %f, %d, %d", diff, left_extras_.pps, right_extras_.pps);
-  if ((diff >= 0) && (diff < 0.004)) {
+  if ((diff >= 0) && (diff < 0.003)) {
     l_msg_camera_info_.header.stamp = r_msg_camera_info_.header.stamp;
   } else {
     l_msg_camera_info_.header.stamp = l_stamp_;
@@ -851,7 +851,7 @@ void StereoNode::publishImageR(const char *frame, size_t size, ros::Time stamp, 
   double diff = (r_stamp_ - l_stamp_).toSec();
   //boost::lock_guard<boost::mutex> lock3(mutex3_);
   //ROS_INFO("right diff: %f", diff);
-  if ((diff >= 0) && (diff < 0.004)) {
+  if ((diff >= 0) && (diff < 0.003)) {
     r_msg_camera_info_.header.stamp = l_msg_camera_info_.header.stamp;
   } else {
     r_msg_camera_info_.header.stamp = r_stamp_;

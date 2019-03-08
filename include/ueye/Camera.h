@@ -54,17 +54,6 @@
 namespace ueye
 {
 
-/*struct imageDataStruct
-{
-  char *img_mem;
-  size_t size;
-  ros::Time stamp;
-  int pps;
-  double exposure;
-  int count;
-  int imgID;
-};*/
-
 struct ExposureGainStruct {
   ros::Time stamp;
   double exposure;
@@ -198,9 +187,6 @@ public:
   void getAutoBrightnessAOI(IS_RECT& rectAOI);
   int getGPIOConfiguration();
   void getFrameRate(double *rate);
-  //bool getImageDataFromList(char **frame, size_t& size, ros::Time& stamp, int& pps, double& exposure, int& count);
-  //bool removeFromList();
-  //void clearList();
 
   // Set Properties
   void setColorMode(uEyeColor mode);
@@ -300,7 +286,6 @@ private:
   HIDS cam_;
   SENSORINFO cam_info_;
   unsigned int serial_number_;
-  //std::vector<imageDataStruct> dataList_;
   circular_buffer ExposureGainList_{6};
   bool trigger;
 
@@ -316,8 +301,10 @@ private:
   boost::mutex mutex;
   
   // Added by me for debugging
-  UEYEIMAGEINFO PrevImageInfo;
-  ros::Time prev_stamp;
+  //UEYEIMAGEINFO PrevImageInfo;
+  //ros::Time prev_stamp;
+  bool ppsLock;
+  void waitForEvent(INT event);
   void displayAndChange(boost::thread& daThread);
 };
 } //namespace ueye
