@@ -1388,7 +1388,7 @@ void Camera::startVideoCapture(CamCaptureCB callback)
   captureThread_ = boost::thread(&Camera::captureThread, this, callback);
   
   //displayAndChange( captureThread_ );
-  //pollExposureGainThread_ = boost::thread(&Camera::PollExposureGain, this);
+  pollExposureGainThread_ = boost::thread(&Camera::PollExposureGain, this);
 }
 void Camera::stopVideoCapture()
 {
