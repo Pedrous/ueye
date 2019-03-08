@@ -259,7 +259,7 @@ private:
   INT GetImageID (char* pbuf);
   INT GetImageSeqNum (char* pbuf);
   void SaveExposureAndGain();
-  bool LoadExposureAndGain( ros::Time trigger_time, double& exposure, unsigned int& gain );
+  bool LoadExposureAndGain( int buffers_in_use, ros::Time trigger_time, double& exposure, unsigned int& gain );
   void clearExposureGainList();
   void GetExposureGain( ros::Time trigger_time, double& exposure, unsigned int& gain);
   void PollExposureGain();
@@ -286,7 +286,7 @@ private:
   HIDS cam_;
   SENSORINFO cam_info_;
   unsigned int serial_number_;
-  circular_buffer ExposureGainList_{3};
+  circular_buffer ExposureGainList_{82};
   bool trigger;
 
   volatile bool streaming_;

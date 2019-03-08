@@ -6,15 +6,15 @@
   <arg name="right_cam_serial"            default="4103423537" />
 	<arg name="namespace"                   default="camera" />
 	<arg name="auto_exposure"	              default="true" />
-	<arg name="auto_gain"		                default="true" />
+	<arg name="auto_gain"		                default="false" />
 	<arg name="color"		                    default="0" /> <!-- 0:MONO8, 1:MONO16, 2:YUV, 3:YCbCr, 4:BGR5, 5:BGR565, 6:BGR8, 7:BGRA8, 9:BGRY8, 9:RGB8, 10:RGBA8, 11, RGBY8 -->
 	<arg name="config_path"		              default="" />
 	<arg name="exposure_time"	              default="85" /> <!-- 85 -->
 	<arg name="force_streaming"	            default="false" />
 	<arg name="l_frame_id"		              default="/left_camera" />
 	<arg name="r_frame_id"		              default="/right_camera" />
-	<arg name="frame_rate"		              default="235" /> <!-- 30 -->
-	<arg name="gain"		                    default="100" /> <!-- 100 -->
+	<arg name="frame_rate"		              default="236" /> <!-- 30 -->
+	<arg name="gain"		                    default="2000" /> <!-- 100 -->
 	<arg name="gain_boost"		              default="false" />
 	<arg name="hardware_gamma"	            default="false" />
 	<arg name="pixel_clock"		              default="480" /> <!-- 86 -->
@@ -32,7 +32,7 @@
   <arg name="software_binning"		        default="True" />
   <arg name="visualize_brightness_AOI"    default="False" />
   <arg name="auto_exposure_hysteresis"		default="2" />
-  <arg name="auto_exposure_max"		        default="10.0" />
+  <arg name="auto_exposure_max"		        default="4.2" />
   <arg name="auto_exposure_reference"		  default="80" />
   <arg name="auto_exposure_skip_frames"	  default="20" />
   <arg name="auto_exposure_speed"		      default="50" />
