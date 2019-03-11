@@ -1191,12 +1191,13 @@ void Camera::SaveExposureAndGain() {
 
 bool Camera::LoadExposureAndGain( int buffers_in_use, ros::Time trigger_time, double& exposure, unsigned int& gain) {
   boost::mutex::scoped_lock lock(mutex);
-  if ( !ExposureGainList_.empty() ) {
-    int index = ExposureGainList_.size() - buffers_in_use;
-    if (index > -1 ) {
-      exposure = ExposureGainList_[index].exposure;
-      gain = ExposureGainList_[index].gain;
-    }
+  if ( ExposureGainList_.size() > 1 ) {
+    //int index = ExposureGainList_.size() - buffers_in_use;
+    //if (index > -1 ) {
+    exposure = ExposureGainList_[0].exposure;
+    gain = ExposureGainList_[0].gain;
+    ExposureGainList_.erase(ExposureGainList_.begin());
+    //}
   }
   /*if ( !ExposureGainList_.empty() ) {
     int placeholder = -1;
