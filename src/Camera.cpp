@@ -1170,29 +1170,31 @@ void Camera::SaveExposureAndGain() {
 
 bool Camera::LoadExposureAndGain( int buffers_in_use, ros::Time trigger_time, double& exposure, unsigned int& gain) {
   boost::mutex::scoped_lock lock(mutex);
-  if ( ExposureGainList_.size() > 1 ) {
+  if ( ExposureGainList_.size() > 1 ) {    
+    double diff = (ExposureGainList_[0].stamp - trigger_time).toSec();
+    double diff_exps = (ExposureGainList_[1].stamp - ExposureGainList_[0].stamp).toSec();
+    ROS_INFO("diff to trig: %f, diff exps %f, l sz %d", diff, diff_exps, ExposureGainList_.size() );
+    exposure = ExposureGainList_[0].exposure;
+    gain = ExposureGainList_[0].gain;
+    
     int best_i = 0;
     for ( int i = 0; i < ExposureGainList_.size(); i++) {
       double diff = (ExposureGainList_[i].stamp - trigger_time).toSec();
-      if ( diff > -0.005 && diff < 0 ) {
+      if ( diff < 0.005 )
         best_i = i;
+      else if ( diff >= 0.005 )
         break;
-      }
-      else if ( diff >= 0 ) {
-        best_i = --i;
-        break;
-      }
     }
     
-    double diff = (ExposureGainList_[best_i].stamp - trigger_time).toSec();
-    double diff_exps = (ExposureGainList_[++best_i].stamp - ExposureGainList_[best_i].stamp).toSec();
-    ROS_INFO("diff to trig: %f, diff exps %f, l sz %d", diff, diff_exps, ExposureGainList_.size() );
-    exposure = ExposureGainList_[best_i].exposure;
-    gain = ExposureGainList_[best_i].gain;
-    if ( (diff + diff_exps) < 0.005 ) {
-      boost::circular_buffer<ExposureGainStruct>::iterator it = ExposureGainList_.begin() + best_i;
+    if ( best_i > 0 ) {
+      boost::circular_buffer<ExposureGainStruct>::iterator it = ExposureGainList_.begin() + best_i - 1;
       ExposureGainList_.erase(ExposureGainList_.begin(), it);
     }
+    
+    /*if ( (diff + diff_exps) < 0.005 ) {
+      boost::circular_buffer<ExposureGainStruct>::iterator it = ExposureGainList_.begin() + best_i;
+      ExposureGainList_.erase(ExposureGainList_.begin(), it);
+    }*/
     //}
   }
   else
