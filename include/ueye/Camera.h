@@ -287,6 +287,7 @@ private:
   SENSORINFO cam_info_;
   unsigned int serial_number_;
   circular_buffer ExposureGainList_{82};
+  int read_index;
   bool trigger;
 
   volatile bool streaming_;
@@ -302,7 +303,7 @@ private:
   
   // Added by me for debugging
   //UEYEIMAGEINFO PrevImageInfo;
-  //ros::Time prev_stamp;
+  ros::Time prev_stamp;
   bool ppsLock;
   void displayAndChange(boost::thread& daThread);
 };

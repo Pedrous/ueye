@@ -1031,13 +1031,6 @@ void Camera::captureThread(CamCaptureCB callback)
   threadpool.create_thread( boost::bind(&boost::asio::io_service::run, &ioService) );
   threadpool.create_thread( boost::bind(&boost::asio::io_service::run, &ioService) );
   
-  double exp_time_ = 1.0;
-  bool auto_exp_ = false;
-  setAutoExposure(&auto_exp_);
-  setExposure(&exp_time_);
-  int count = 0;
-  bool dir_up = true;
-  
   while (!stop_capture_) {
     // Wait for image. Timeout after 2*FramePeriod = (2000ms/FrameRate)
     
@@ -1045,23 +1038,6 @@ void Camera::captureThread(CamCaptureCB callback)
     INT status = is_WaitForNextImage(cam_, 2000, &img_mem, &img_ID);
     if ( IS_SUCCESS == status) {
       // Assign the task for the thread pool
-      
-      count++;
-      if (!(count % 10) ) {
-        if ( dir_up ) {
-          exp_time_ = exp_time_ + 1;
-          setExposure(&exp_time_);
-          if ( exp_time_ >= 4.0 )
-            dir_up = false;
-        }
-        else {
-          exp_time_ = exp_time_ - 1;
-          setExposure(&exp_time_);
-          if ( exp_time_ <= 1.0 )
-            dir_up = true;
-        }
-      }
-        
       ioService.post(boost::bind(&Camera::processFrame, this, img_mem, img_ID, size, callback));
     }
     else {
@@ -1113,8 +1089,9 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
   ros::Time stamp;
   
   if ( IS_SUCCESS == is_GetImageInfo(cam_, img_ID, &ImageInfo, sizeof(ImageInfo)) ) {
-    if ( !(ImageInfo.u64FrameNumber % 235) )
+    if ( !(ImageInfo.u64FrameNumber % 235) ) {
       ROS_INFO("Buffers: %d/%d", ImageInfo.dwImageBuffersInUse, ImageInfo.dwImageBuffers);
+    }
     /*ROS_INFO("%02d:%03d, IO: %d, Buffers: %d/%d, Frame number: %llu, Process time: %d, Frame_rate: %f",
     ImageInfo.TimestampSystem.wSecond,
     ImageInfo.TimestampSystem.wMilliseconds,
@@ -1137,6 +1114,8 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     unsigned int gain = 0;
     //GetExposureGain( stamp, exposure, gain );
     LoadExposureAndGain( ImageInfo.dwImageBuffersInUse, stamp, exposure, gain );
+    //ROS_INFO("Time between images %f", (stamp - prev_stamp).toSec() );
+    //prev_stamp = stamp;
     
     if (trigger) {
       if (!ppsLock)
@@ -1192,13 +1171,32 @@ void Camera::SaveExposureAndGain() {
 bool Camera::LoadExposureAndGain( int buffers_in_use, ros::Time trigger_time, double& exposure, unsigned int& gain) {
   boost::mutex::scoped_lock lock(mutex);
   if ( ExposureGainList_.size() > 1 ) {
-    //int index = ExposureGainList_.size() - buffers_in_use;
-    //if (index > -1 ) {
-    exposure = ExposureGainList_[0].exposure;
-    gain = ExposureGainList_[0].gain;
-    ExposureGainList_.erase(ExposureGainList_.begin());
+    int best_i = 0;
+    for ( int i = 0; i < ExposureGainList_.size(); i++) {
+      double diff = (ExposureGainList_[i].stamp - trigger_time).toSec();
+      if ( diff > -0.005 && diff < 0 ) {
+        best_i = i;
+        break;
+      }
+      else if ( diff >= 0 ) {
+        best_i = --i;
+        break;
+      }
+    }
+    
+    double diff = (ExposureGainList_[best_i].stamp - trigger_time).toSec();
+    double diff_exps = (ExposureGainList_[++best_i].stamp - ExposureGainList_[best_i].stamp).toSec();
+    ROS_INFO("diff to trig: %f, diff exps %f, l sz %d", diff, diff_exps, ExposureGainList_.size() );
+    exposure = ExposureGainList_[best_i].exposure;
+    gain = ExposureGainList_[best_i].gain;
+    if ( (diff + diff_exps) < 0.005 ) {
+      boost::circular_buffer<ExposureGainStruct>::iterator it = ExposureGainList_.begin() + best_i;
+      ExposureGainList_.erase(ExposureGainList_.begin(), it);
+    }
     //}
   }
+  else
+    ROS_INFO("ExposureGainList size < 2, buffers in use %d", buffers_in_use);
   /*if ( !ExposureGainList_.empty() ) {
     int placeholder = -1;
     //is_GetFramesPerSecond (HIDS hCam, double* dblFPS)
@@ -1286,17 +1284,47 @@ void Camera::GetExposureGain( ros::Time trigger_time, double& exposure, unsigned
 }
 
 void Camera::PollExposureGain() {
-  ULONG trigger_count = 0;
+  //ULONG trigger_count = 0;
   
   checkError(is_EnableEvent(cam_, IS_SET_EVENT_FIRST_PACKET_RECEIVED));
+  
+  /*double exp_time_ = 1.0;
+  bool auto_exp_ = false;
+  setAutoExposure(&auto_exp_);
+  setExposure(&exp_time_);
+  int count = 0;
+  bool dir_up = true;*/
+  
   while (!stop_capture_) {
-    if ( is_WaitEvent(cam_, IS_SET_EVENT_FIRST_PACKET_RECEIVED, 2000) == IS_SUCCESS ) {
+    if ( is_WaitEvent(cam_, IS_SET_EVENT_FIRST_PACKET_RECEIVED, 5) == IS_SUCCESS ) {
       ros::Time now = ros::Time::now();
       //ULONG value = is_CameraStatus(cam_, IS_EXT_TRIGGER_EVENT_CNT, trigger_count);
       //checkError(is_SetTriggerCounter (cam_, IS_GET_TRIGGER_COUNTER));
       boost::mutex::scoped_lock lock(mutex);
+      /*if ( !ExposureGainList_.empty() ) {
+        auto last = ExposureGainList_.back();
+        double diff = (now - last.stamp).toSec();
+        if ( diff > 0.005 )
+          ROS_INFO("time between exposures: %f", diff );
+      }*/
       ExposureGainList_.push_back({now, getExposure(), getHardwareGain()});
       //ROS_INFO("serial %02u, first packet received @ %.3f, Trigger_count: %lu, return: %lu", serial_number_, now.toSec(), trigger_count, value);
+      
+      /*count++;
+      if (!(count % 10) ) {
+        if ( dir_up ) {
+          exp_time_ = exp_time_ + 1;
+          setExposure(&exp_time_);
+          if ( exp_time_ >= 4.0 )
+            dir_up = false;
+        }
+        else {
+          exp_time_ = exp_time_ - 1;
+          setExposure(&exp_time_);
+          if ( exp_time_ <= 1.0 )
+            dir_up = true;
+        }
+      }*/
     }
   }
   checkError(is_DisableEvent(cam_, IS_SET_EVENT_FIRST_PACKET_RECEIVED));
@@ -1350,7 +1378,7 @@ void Camera::displayAndChange(boost::thread& daThread) {
 
 
   policy = SCHED_FIFO;
-  param.sched_priority = 4;
+  param.sched_priority = 20;
 
   if ((retcode = pthread_setschedparam(threadID, policy, &param)) != 0)
   {
@@ -1371,7 +1399,7 @@ void Camera::startVideoCapture(CamCaptureCB callback)
 {
   stream_callback_ = callback;
   
-  /*int policy, res;
+  int policy, res;
 
   struct sched_param param;
 
@@ -1387,7 +1415,7 @@ void Camera::startVideoCapture(CamCaptureCB callback)
       exit(EXIT_FAILURE);
   }
 
-  std::cout << " ORIGINAL: ";
+  std::cout << " BEFORE CHANGING THE CHILD: ";
   std::cout << "policy=" << ((policy == SCHED_FIFO)  ? "SCHED_FIFO" :
                              (policy == SCHED_RR)    ? "SCHED_RR" :
                              (policy == SCHED_OTHER) ? "SCHED_OTHER" :
@@ -1396,18 +1424,40 @@ void Camera::startVideoCapture(CamCaptureCB callback)
 
 
   policy = SCHED_RR;
-  param.sched_priority = 2;
+  param.sched_priority = 5;
 
   if ((res = sched_setscheduler(getpid(), policy, &param)) == -1)
   {
       perror("sched_setscheduler");
       exit(EXIT_FAILURE);
-  }*/
+  }
   
   captureThread_ = boost::thread(&Camera::captureThread, this, callback);
   
   //displayAndChange( captureThread_ );
   pollExposureGainThread_ = boost::thread(&Camera::PollExposureGain, this);
+  displayAndChange( pollExposureGainThread_ );
+  
+  if ((policy = sched_getscheduler(getpid())) == -1)
+  {
+      perror("sched_getscheduler");
+      exit(EXIT_FAILURE);
+  }
+
+  if ((res = sched_getparam(getpid(), &param)) == -1)
+  {
+      perror("sched_getparam");
+      exit(EXIT_FAILURE);
+  }
+
+  std::cout << " AFTER CHANGING THE CHILD: ";
+  std::cout << "policy=" << ((policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                             (policy == SCHED_RR)    ? "SCHED_RR" :
+                             (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                                                        "???")
+            << ", priority=" << param.sched_priority << std::endl;
+  
+  
 }
 void Camera::stopVideoCapture()
 {

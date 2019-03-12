@@ -19,7 +19,7 @@
 	<arg name="hardware_gamma"	            default="false" />
 	<arg name="pixel_clock"		              default="480" /> <!-- 86 -->
 	<arg name="extended_pixel_clock"		    default="true" />
-	<arg name="trigger"		                  default="0" /> <!-- 0:AUTO, 1:SOFTWARE, 2:HARDWARE_RISING, 3:HARDWARE_FALLING -->
+	<arg name="trigger"		                  default="2" /> <!-- 0:AUTO, 1:SOFTWARE, 2:HARDWARE_RISING, 3:HARDWARE_FALLING -->
 	<arg name="zoom"		                    default="1" />
 	<arg name="height"		                  default="840" />
 	<arg name="width"		                    default="1936" />
