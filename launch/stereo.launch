@@ -32,9 +32,9 @@
   <arg name="software_binning"		        default="True" />
   <arg name="visualize_brightness_AOI"    default="False" />
   <arg name="auto_exposure_hysteresis"		default="2" />
-  <arg name="auto_exposure_max"		        default="4.2" />
+  <arg name="auto_exposure_max"		        default="5" />
   <arg name="auto_exposure_reference"		  default="80" />
-  <arg name="auto_exposure_skip_frames"	  default="20" />
+  <arg name="auto_exposure_skip_frames"	  default="4" />
   <arg name="auto_exposure_speed"		      default="50" />
 
 	<group ns="$(arg namespace)" >

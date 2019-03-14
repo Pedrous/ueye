@@ -304,6 +304,7 @@ private:
   // Added by me for debugging
   //UEYEIMAGEINFO PrevImageInfo;
   ros::Time prev_stamp;
+  ros::Time prev_trigger;
   bool ppsLock;
   void displayAndChange(boost::thread& daThread);
 };
