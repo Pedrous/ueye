@@ -732,30 +732,11 @@ void CameraNode::CalExp(double exposure)
 }
 
 // Timestamp and publish the image. Called by the streaming thread.
-void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, int pps, double exposure, unsigned int gain, unsigned long long frame_count)
+void CameraNode::publishImage(const char *frame, size_t size, ueye::extras& extras) //ros::Time stamp, int pps, double exposure, unsigned int gain, unsigned long long frame_count)
 {  
   if (publish_extras_)
   {
-    // Publish ppscontrol and exposure values
-    extras_.pps = pps; //l_cam_.getGPIOConfiguration();
-    PpsCount++;
-    /*if (left_extras_.pps == 1)
-    {
-      ROS_INFO("Left Camera time, %f, %f", l_stamp_.toSec(), r_stamp_.toSec());
-      if (leftPpsCount != 100)
-        ROS_INFO("Left Camera frequency: %d Hz", leftPpsCount);
-      leftPpsCount = 0;
-    }*/
-    extras_.exposure_time = exposure;
-    extras_.gain = gain;
-    extras_.frame_count = frame_count;
-    /*if (auto_exposure_)
-      extras_.exposure_time = exposure;
-    else
-      extras_.exposure_time = exposure_time_;*/
-    
-    extras_.header.stamp = stamp;
-    pub_extras_.publish(extras_);
+    pub_extras_.publish(extras);
   }
   
   sensor_msgs::CameraInfoPtr info;
@@ -768,14 +749,14 @@ void CameraNode::publishImage(const char *frame, size_t size, ros::Time stamp, i
   //exposure_calib_.header = img->header;
   //exposure_calib_.exp_time = exposure_;
   //pub_exposure_.publish(exposure_calib_);
-  info->header.stamp = stamp;
+  info->header.stamp = extras.header.stamp;
   pub_stream_.publish(img, info);
   
-  if (cal_exp_) {
-    bag.write("exposure", stamp, extras_);
-    bag.write("image", stamp, img);
-    CalExp(exposure);
-  }
+  /*if (cal_exp_) {
+    bag.write("exposure", extras.header.stamp, extras.exposure_time);
+    bag.write("image", extras.header.stamp, img);
+    CalExp(extras.exposure_time);
+  }*/
   /*if (cal_exp_2_)
   {
     bag.write("exposure", ros::Time::now(), exposure_calib_);
@@ -845,7 +826,7 @@ void CameraNode::startCamera()
 {
   if (running_ || !configured_)
     return;
-  cam_.startVideoCapture(boost::bind(&CameraNode::publishImage, this, _1, _2, _3, _4, _5, _6, _7));
+  cam_.startVideoCapture(boost::bind(&CameraNode::publishImage, this, _1, _2, _3));
   stop_publish_ = false;
   //stamp_ready = false;
   //img_info_ready = false;

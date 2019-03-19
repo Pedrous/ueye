@@ -44,6 +44,7 @@
 #include <vector>
 #include <boost/thread/mutex.hpp>
 #include <boost/interprocess/sync/scoped_lock.hpp>
+#include "ueye/extras.h"
 
 #include <boost/asio/io_service.hpp>
 #include <boost/bind.hpp>
@@ -186,7 +187,9 @@ public:
   void getAOI(IS_RECT& rectAOI);
   void getAutoBrightnessAOI(IS_RECT& rectAOI);
   int getGPIOConfiguration();
-  void getFrameRate(double *rate);
+  void getFrameRate(double& rate);
+  void defineFrameRate();
+  void calcFPSDependentLimit();
 
   // Set Properties
   void setColorMode(uEyeColor mode);
@@ -220,7 +223,7 @@ public:
 
   bool forceTrigger();
 
-  typedef boost::function<void(const char *, size_t, ros::Time, int, double, unsigned int, unsigned long long)> CamCaptureCB;
+  typedef boost::function<void(const char *, size_t, ueye::extras& extras)> CamCaptureCB;//ros::Time, int, double, unsigned int, unsigned long long)> CamCaptureCB;
   void startVideoCapture(CamCaptureCB);
   void stopVideoCapture();
 
@@ -259,10 +262,11 @@ private:
   INT GetImageID (char* pbuf);
   INT GetImageSeqNum (char* pbuf);
   void SaveExposureAndGain();
-  bool LoadExposureAndGain( int buffers_in_use, ros::Time trigger_time, double& exposure, unsigned int& gain );
+  bool LoadExposureAndGain( ueye::extras& extras );
   void clearExposureGainList();
   void GetExposureGain( ros::Time trigger_time, double& exposure, unsigned int& gain);
   void PollExposureGain();
+  void printCaptureStatusInformation();
   
   IS_RECT aoi_;
   IS_RECT brightness_aoi_;
@@ -286,7 +290,7 @@ private:
   HIDS cam_;
   SENSORINFO cam_info_;
   unsigned int serial_number_;
-  circular_buffer ExposureGainList_{82};
+  circular_buffer ExposureGainList_{20};
   int read_index;
   bool trigger;
 
@@ -305,8 +309,12 @@ private:
   //UEYEIMAGEINFO PrevImageInfo;
   ros::Time prev_stamp;
   ros::Time prev_trigger;
+  ros::Time prev;
   bool ppsLock;
-  void displayAndChange(boost::thread& daThread);
+  boost::circular_buffer<double> fps_{11};
+  double fps_dependent_limit_;
+  void displayAndChangeThreadPriority(boost::thread& daThread);
+  int pps_count_;
 };
 } //namespace ueye
 

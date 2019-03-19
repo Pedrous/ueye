@@ -641,10 +641,33 @@ void Camera::setFrameRate(double *rate)
   flashUpdateGlobalParams();
   frame_rate_ = *rate;
 }
-void Camera::getFrameRate(double *rate)
+void Camera::getFrameRate(double& rate)
 {
-  is_GetFramesPerSecond(cam_, rate);
+  is_GetFramesPerSecond(cam_, &rate);
 } 
+void Camera::defineFrameRate() {
+  double fps;
+  getFrameRate(fps);
+  //ROS_INFO("Frame rate %f", fps);
+  fps_.push_back(fps);
+  
+  if ( ( fabs(frame_rate_ - fps) ) > 0.1 ) {
+    boost::circular_buffer<double> sorted_fps = fps_;
+    
+    sort(sorted_fps.begin(), sorted_fps.end());
+    int sz = sorted_fps.size();
+    if (sz % 2 == 0) {
+      frame_rate_ = (sorted_fps[sz / 2 - 1] + sorted_fps[sz / 2]) / 2;
+    }
+    else {
+      frame_rate_ = sorted_fps[sz / 2];
+    }
+  }
+}
+void Camera::calcFPSDependentLimit() {
+  //fps_dependent_limit_ = -9.15341 - 247.4344/(pow(2, frame_rate_/11.72375) );
+  fps_dependent_limit_ = -0.008922367 - 0.089630933/(1 + pow( (frame_rate_/31.44918), 3.811245 ) );
+}
 void Camera::setGainBoost(bool *enable)
 {
   if (is_SetGainBoost(cam_, IS_GET_SUPPORTED_GAINBOOST) == IS_SET_GAINBOOST_ON) {
@@ -959,6 +982,25 @@ void Camera::destroyMemoryPool()
   img_mem_id_.clear();
   img_mem_seq_num_.clear();
 }
+void Camera::printCaptureStatusInformation() {
+  UEYE_CAPTURE_STATUS_INFO CaptureStatusInfo;
+  is_CaptureStatus (cam_, IS_CAPTURE_STATUS_INFO_CMD_GET, (void*)&CaptureStatusInfo, sizeof(CaptureStatusInfo));
+  
+  if ( CaptureStatusInfo.dwCapStatusCnt_Total > 0 ) {
+    ROS_INFO("Capturestatus Total Errors: %d \n  No destination memory: %d \n  Conversion failed: %d \n  Image locked: %d \n  Out of buffers: %d \n  Device not ready: %d \n  Transfer failed: %d \n  Timeout: %d \n  Buffer overrun: %d \n  Missed images: %d \n  Capture failed: %d", 
+              CaptureStatusInfo.dwCapStatusCnt_Total,
+              CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_NO_DEST_MEM],
+              CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_CONVERSION_FAILED],
+              CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_IMAGE_LOCKED],
+              CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DRV_OUT_OF_BUFFERS],
+              CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DRV_DEVICE_NOT_READY],
+              CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_USB_TRANSFER_FAILED],
+              CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DEV_TIMEOUT],
+              CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_ETH_BUFFER_OVERRUN],
+              CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DEV_MISSED_IMAGES],
+              CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DEV_FRAME_CAPTURE_FAILED] );
+  }
+}
 
 void Camera::captureThread(CamCaptureCB callback)
 {
@@ -1015,11 +1057,11 @@ void Camera::captureThread(CamCaptureCB callback)
   size_t size = (size_t)getROIWidth() * (size_t)getROIHeight() * depth;
   //ROS_INFO("Size: %d, Width: %d, Height: %d, aoi_.s32Width: %d, aoi_.s32Height: %d", size, (size_t)getROIWidth(), (size_t)getROIHeight(), aoi_.s32Width, aoi_.s32Height);
   
+  // Variables for image event
   char *img_mem = NULL;
   int img_ID = 0;
-  //UEYEIMAGEINFO ImageInfo;
-  UEYE_CAPTURE_STATUS_INFO CaptureStatusInfo;
-  //PrevImageInfo.u64FrameNumber = 0;
+  
+  // Lock is opened with the first PPS pulses received
   ppsLock = true;
   
   // Initialize thread pool service
@@ -1036,19 +1078,7 @@ void Camera::captureThread(CamCaptureCB callback)
       ioService.post(boost::bind(&Camera::processFrame, this, img_mem, img_ID, size, callback));
     }
     else {
-      is_CaptureStatus (cam_, IS_CAPTURE_STATUS_INFO_CMD_GET, (void*)&CaptureStatusInfo, sizeof(CaptureStatusInfo));
-      ROS_INFO("Capturestatus Total Errors: %d \n  No Mem: %d \n  Conv fail: %d \n  image lock: %d \n  no buf: %d \n  dev not ready: %d \n  transfer fail: %d \n  timeout: %d \n  buf overrun: %d \n  missed img: %d \n capt failed: %d", 
-                CaptureStatusInfo.dwCapStatusCnt_Total,
-                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_NO_DEST_MEM],
-                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_CONVERSION_FAILED],
-                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_API_IMAGE_LOCKED],
-                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DRV_OUT_OF_BUFFERS],
-                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DRV_DEVICE_NOT_READY],
-                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_USB_TRANSFER_FAILED],
-                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DEV_TIMEOUT],
-                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_ETH_BUFFER_OVERRUN],
-                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DEV_MISSED_IMAGES],
-                CaptureStatusInfo.adwCapStatusCnt_Detail[IS_CAP_STATUS_DEV_FRAME_CAPTURE_FAILED] );
+      printCaptureStatusInformation();
     }
   }
   
@@ -1069,13 +1099,8 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
   auto now = std::chrono::system_clock::now();
   auto seconds_since_epoch = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
   unsigned short seconds = seconds_since_epoch.count() % 60;
-  //auto timer = std::chrono::system_clock::to_time_t(now);
-  
-  //putenv("TZ=Europe/Finland");
-  //std::tm bt = *std::localtime(&timer);
   
   UEYEIMAGEINFO ImageInfo;
-  ros::Time stamp;
   
   if ( IS_SUCCESS == is_GetImageInfo(cam_, img_ID, &ImageInfo, sizeof(ImageInfo)) ) {
     //if ( !(ImageInfo.u64FrameNumber % 235) ) {
@@ -1090,34 +1115,57 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     ImageInfo.u64FrameNumber,
     ImageInfo.dwHostProcessTime,
     dblFPS);*/
-    
+    ueye::extras extras;
     if ( seconds == ImageInfo.TimestampSystem.wSecond ) { 
-      stamp = ros::Time(seconds_since_epoch.count(), ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000);
+      extras.header.stamp = ros::Time(seconds_since_epoch.count(), ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000);
     }
     else {
-      stamp = ros::Time(seconds_since_epoch.count() - 1, ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000 );
+      extras.header.stamp = ros::Time(seconds_since_epoch.count() - 1, ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000 );
     }
-    
+    int ns = (ImageInfo.u64TimestampDevice % 10000000) * 100;
+    int total_sec = ImageInfo.u64TimestampDevice / 10000000;
+    int ss = total_sec % 60;
+    int mm = (total_sec/60) % 60;
+    int hh = (total_sec/(60*60)) % 24;
+    //ROS_INFO("Camera time: %02d:%02d:%02d.%09d", hh, mm, ss, ns);
+    //ROS_INFO("PC time: %02d:%02d:%02d.%03d", ImageInfo.TimestampSystem.wHour, ImageInfo.TimestampSystem.wMinute, ImageInfo.TimestampSystem.wSecond, ImageInfo.TimestampSystem.wMilliseconds);
+    if ( (extras.header.stamp - prev).toSec() < 0.0025 || (extras.header.stamp - prev).toSec() > 0.0075 || (extras.header.stamp - prev).toSec() == 0 ) {
+      ROS_INFO("STAMP INCONSISTENCY cur stamp: %d.%09d, prev stamp: %d.%09d", extras.header.stamp.sec, extras.header.stamp.nsec, prev.sec, prev.nsec);
+      ROS_INFO("Camera time: %02d:%02d:%02d.%09d", hh, mm, ss, ns);
+    }
+      
     std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
-    double exposure = 0;
-    unsigned int gain = 0;
-    //GetExposureGain( stamp, exposure, gain );
-    LoadExposureAndGain( ImageInfo.dwImageBuffersInUse, stamp, exposure, gain );
+    extras.pps = !IoStatus[0];
+    extras.frame_count = ImageInfo.u64FrameNumber;
+    LoadExposureAndGain( extras );
     //ROS_INFO("Time between images %f", (stamp - prev_stamp).toSec() );
-    //prev_stamp = stamp;
+    prev = extras.header.stamp;
     
     if (trigger) {
-      if (!ppsLock)
-        callback(img_mem, size, stamp, !IoStatus[0], exposure, gain, ImageInfo.u64FrameNumber);
+      if (!ppsLock) {
+        if ( !IoStatus[0] ) {
+          if (pps_count_ != 200) {
+            ROS_INFO("pps count %d", pps_count_);
+            printCaptureStatusInformation();
+          }
+          pps_count_ = 0;
+        }
+        pps_count_++;
+          
+        callback(img_mem, size, extras);
+      }
       else if ( !IoStatus[0] ) {
         ppsLock = false;
-        callback(img_mem, size, stamp, !IoStatus[0], exposure, gain, ImageInfo.u64FrameNumber);
+        pps_count_ = 1;
+        callback(img_mem, size, extras);
       }
+      else
+        ROS_INFO("pps: %x", !IoStatus[0]);
     }
     
     else {
       //ROS_INFO("time elapsed: %f", (received - stamp).nsec/1000000.0 );
-      callback(img_mem, size, stamp, !IoStatus[0], exposure, gain, ImageInfo.u64FrameNumber);
+      callback(img_mem, size, extras);
     }
   }
   
@@ -1152,47 +1200,50 @@ INT Camera::GetImageSeqNum (char* pbuf) {
   ExposureGainList_.push_back({ros::Time::now(), getExposure(), getHardwareGain()});
 }*/
 
-bool Camera::LoadExposureAndGain( int buffers_in_use, ros::Time trigger_time, double& exposure, unsigned int& gain) {
-  boost::mutex::scoped_lock lock(mutex);
-  if ( !ExposureGainList_.empty() ) {  
-    int best_index = 0;
-    double best_diff_to_trigger;
-    int sz = ExposureGainList_.size();
-    for ( int i = 0; i < sz; i++) {
-      double diff_to_trigger = (ExposureGainList_[i].stamp - trigger_time).toSec(); //stamp is rounded to full milliseconds and 0.5 ms is to secure that
-      if (trigger) // When triggering, the timestamp is from the start of the triggering and in freerun it is when the image transfer is started
-        diff_to_trigger -= ExposureGainList_[i].exposure/1000.0;
-      //ROS_INFO("round %d, diff_to_trigger %f", i, diff_to_trigger);
-      if ( diff_to_trigger < -0.012 ) {
-        best_diff_to_trigger = diff_to_trigger;
-        best_index = i;
+bool Camera::LoadExposureAndGain( ueye::extras& extras ) {
+  // Check frame rate
+  defineFrameRate();
+  calcFPSDependentLimit();
+  
+  {
+    boost::mutex::scoped_lock lock(mutex);
+    if ( !ExposureGainList_.empty() ) {  
+      int best_index = 0;
+      int sz = ExposureGainList_.size();
+      for ( int i = 0; i < sz; i++) {
+        double diff_to_trigger = (ExposureGainList_[i].stamp - extras.header.stamp).toSec();
+        if ( diff_to_trigger < fps_dependent_limit_ ) {
+          extras.diff_to_trigger = diff_to_trigger;
+          best_index = i;
+        }
+        else if ( diff_to_trigger >= fps_dependent_limit_ )
+          break;
       }
-      else if ( diff_to_trigger >= -0.012 ) {
-        //ROS_INFO("diff_to_trigger %f, %x", diff_to_trigger, diff_to_trigger >= -5);
-        break;
-      }
-    }
-    
-    exposure = ExposureGainList_[best_index].exposure;
-    gain = ExposureGainList_[best_index].gain;
-    
-    //double diff = (ExposureGainList_[best_index].stamp - trigger_time).toSec();
-    double diff_exps = 0;
-    if ( ExposureGainList_.size() > best_index + 1 )
-      diff_exps = (ExposureGainList_[best_index + 1].stamp - ExposureGainList_[best_index].stamp).toSec();
-    //if ( best_diff_to_trigger >= 0 || ( best_diff_to_trigger < -0.005 && (best_diff_to_trigger + diff_exps < 0) ) ) {
-      ROS_INFO("serial %d, diff %f, diff nxt %f, sz %d, idx %d", serial_number_%4103423500, best_diff_to_trigger, diff_exps, sz, best_index );
-    //  ROS_INFO("prev trig: %d.%09d, cur trig: %d.%09d, prev: %09d, current: %09d", prev_trigger.sec, prev_trigger.nsec, trigger_time.sec, trigger_time.nsec, prev_stamp.nsec, ExposureGainList_[best_index].stamp.nsec);
-    //}
-    prev_stamp = ExposureGainList_[best_index].stamp;
-    prev_trigger = trigger_time;
+      
+      /*if (best_index > 0)
+        extras.before = (ExposureGainList_[best_index - 1].stamp - extras.header.stamp).toSec();
+      if (best_index < sz - 1)
+        extras.after = (ExposureGainList_[best_index + 1].stamp - extras.header.stamp).toSec();*/
+      extras.exposure_time = ExposureGainList_[best_index].exposure;
+      extras.gain = ExposureGainList_[best_index].gain;
+      
+      double diff_exps = 0;
+      if ( ExposureGainList_.size() > best_index + 1 )
+        diff_exps = (ExposureGainList_[best_index + 1].stamp - ExposureGainList_[best_index].stamp).toSec();
+      //if ( extras.diff_to_trigger >= 0 || ( extras.diff_to_trigger < -0.005 && (extras.diff_to_trigger + diff_exps < 0) ) ) {
+      //ROS_INFO("serial %d, diff %f, diff nxt %f, sz %d, idx %d", serial_number_%4103423500, extras.diff_to_trigger, diff_exps, sz, best_index );
+      //  ROS_INFO("prev trig: %d.%09d, cur trig: %d.%09d, prev: %09d, current: %09d", prev_trigger.sec, prev_trigger.nsec, extras.header.stamp.sec, extras.header.stamp.nsec, prev_stamp.nsec, ExposureGainList_[best_index].stamp.nsec);
+      //}
+      prev_stamp = ExposureGainList_[best_index].stamp;
+      prev_trigger = extras.header.stamp;
 
-    if ( best_index > 0 ) {   
-      ExposureGainList_.erase(ExposureGainList_.begin(), ExposureGainList_.begin() + best_index - 1);
+      if ( best_index > 0 ) {   
+        ExposureGainList_.erase(ExposureGainList_.begin(), ExposureGainList_.begin() + best_index - 1);
+      }
     }
+    else
+      ROS_INFO("serial %d, List empty", serial_number_%4103423500);
   }
-  else
-    ROS_INFO("serial %d, List empty", serial_number_%4103423500);
 }
 
 void Camera::clearExposureGainList() {
@@ -1247,12 +1298,21 @@ void Camera::PollExposureGain() {
   bool dir_up = true;*/
   
   while (!stop_capture_) {
-    if ( is_WaitEvent(cam_, IS_SET_EVENT_FIRST_PACKET_RECEIVED, 1000) == IS_SUCCESS ) {
+    //if ( is_WaitEvent(cam_, IS_SET_EVENT_FIRST_PACKET_RECEIVED, 1000) == IS_SUCCESS ) {
+      double exposure = getExposure();
+      double gain = getHardwareGain();
       ros::Time now = ros::Time::now();
       {
         boost::mutex::scoped_lock lock(mutex);
-        ExposureGainList_.push_back({now, getExposure(), getHardwareGain()});
+        if ( ExposureGainList_.empty() )
+          ExposureGainList_.push_back({now, exposure, gain});
+        else if ( ExposureGainList_.back().exposure != exposure || ExposureGainList_.back().gain != gain ) {
+          //ROS_INFO ( "Cycle time %f, time between change %f", (now - prev).toSec(), (now - ExposureGainList_.back().stamp).toSec() ); 
+          ExposureGainList_.push_back({now, exposure, gain});
+        }
       }
+      //prev = now;
+      usleep(1000);
       
       /*count++;
       if (!(count % 10) ) {
@@ -1269,12 +1329,12 @@ void Camera::PollExposureGain() {
             dir_up = true;
         }
       }*/
-    }
+    //}
   }
   checkError( is_DisableEvent(cam_, IS_SET_EVENT_FIRST_PACKET_RECEIVED) );
 }
 
-void Camera::displayAndChange(boost::thread& daThread) {
+void Camera::displayAndChangeThreadPriority(boost::thread& daThread) {
   int retcode;
   int policy;
 
@@ -1319,7 +1379,7 @@ void Camera::startVideoCapture(CamCaptureCB callback)
 {
   stream_callback_ = callback;
   
-  int policy, res;
+  /*int policy, res;
 
   struct sched_param param;
 
@@ -1350,14 +1410,14 @@ void Camera::startVideoCapture(CamCaptureCB callback)
   {
       perror("sched_setscheduler");
       exit(EXIT_FAILURE);
-  }
+  }*/
   
   stop_capture_ = false;
   pollExposureGainThread_ = boost::thread(&Camera::PollExposureGain, this);
-  displayAndChange( pollExposureGainThread_ );
+  //displayAndChangeThreadPriority( pollExposureGainThread_ );
   captureThread_ = boost::thread(&Camera::captureThread, this, callback);
   
-  if ((policy = sched_getscheduler(getpid())) == -1)
+  /*if ((policy = sched_getscheduler(getpid())) == -1)
   {
       perror("sched_getscheduler");
       exit(EXIT_FAILURE);
@@ -1374,7 +1434,7 @@ void Camera::startVideoCapture(CamCaptureCB callback)
                              (policy == SCHED_RR)    ? "SCHED_RR" :
                              (policy == SCHED_OTHER) ? "SCHED_OTHER" :
                                                         "???")
-            << ", priority=" << param.sched_priority << std::endl;
+            << ", priority=" << param.sched_priority << std::endl;*/
   
   
 }

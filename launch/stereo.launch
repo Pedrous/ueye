@@ -14,7 +14,7 @@
 	<arg name="l_frame_id"		              default="/left_camera" />
 	<arg name="r_frame_id"		              default="/right_camera" />
 	<arg name="frame_rate"		              default="236" /> <!-- 30 -->
-	<arg name="gain"		                    default="2000" /> <!-- 100 -->
+	<arg name="gain"		                    default="2400" /> <!-- 100 -->
 	<arg name="gain_boost"		              default="false" />
 	<arg name="hardware_gamma"	            default="false" />
 	<arg name="pixel_clock"		              default="480" /> <!-- 86 -->
@@ -28,12 +28,12 @@
 	<arg name="brightness_AOI_Height"		    default="400" />
   <arg name="brightness_AOI_Width"		    default="1936" />
   <arg name="brightness_AOI_X"		        default="0" />
-  <arg name="brightness_AOI_Y"            default="0" />
+  <arg name="brightness_AOI_Y"            default="440" />
   <arg name="software_binning"		        default="True" />
   <arg name="visualize_brightness_AOI"    default="False" />
   <arg name="auto_exposure_hysteresis"		default="2" />
   <arg name="auto_exposure_max"		        default="5" />
-  <arg name="auto_exposure_reference"		  default="80" />
+  <arg name="auto_exposure_reference"		  default="20" />
   <arg name="auto_exposure_skip_frames"	  default="4" />
   <arg name="auto_exposure_speed"		      default="50" />
 
