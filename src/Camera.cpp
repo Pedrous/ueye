@@ -1129,7 +1129,7 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     int hh = (total_sec/(60*60)) % 24;
     //ROS_INFO("Camera time: %02d:%02d:%02d.%09d", hh, mm, ss, ns);
     //ROS_INFO("PC time: %02d:%02d:%02d.%03d", ImageInfo.TimestampSystem.wHour, ImageInfo.TimestampSystem.wMinute, ImageInfo.TimestampSystem.wSecond, ImageInfo.TimestampSystem.wMilliseconds);
-    if ( (extras.header.stamp - prev).toSec() < 0.0025 || (extras.header.stamp - prev).toSec() > 0.0075 || (extras.header.stamp - prev).toSec() == 0 ) {
+    if ( (extras.header.stamp - prev).toSec() < (0.5/frame_rate_) || (extras.header.stamp - prev).toSec() > (1.5/frame_rate_) || (extras.header.stamp - prev).toSec() == 0 ) {
       ROS_INFO("STAMP INCONSISTENCY cur stamp: %d.%09d, prev stamp: %d.%09d", extras.header.stamp.sec, extras.header.stamp.nsec, prev.sec, prev.nsec);
       ROS_INFO("Camera time: %02d:%02d:%02d.%09d", hh, mm, ss, ns);
     }
@@ -1141,10 +1141,10 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     //ROS_INFO("Time between images %f", (stamp - prev_stamp).toSec() );
     prev = extras.header.stamp;
     
-    if (trigger) {
+    /*if (trigger) {
       if (!ppsLock) {
         if ( !IoStatus[0] ) {
-          if (pps_count_ != 200) {
+          if (pps_count_ != frame_rate_) {
             ROS_INFO("pps count %d", pps_count_);
             printCaptureStatusInformation();
           }
@@ -1166,7 +1166,8 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     else {
       //ROS_INFO("time elapsed: %f", (received - stamp).nsec/1000000.0 );
       callback(img_mem, size, extras);
-    }
+    }*/
+    callback(img_mem, size, extras);
   }
   
   int img_seq_num = GetImageSeqNum(img_mem);
