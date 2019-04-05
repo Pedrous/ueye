@@ -1129,10 +1129,10 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     int hh = (total_sec/(60*60)) % 24;
     //ROS_INFO("Camera time: %02d:%02d:%02d.%09d", hh, mm, ss, ns);
     //ROS_INFO("PC time: %02d:%02d:%02d.%03d", ImageInfo.TimestampSystem.wHour, ImageInfo.TimestampSystem.wMinute, ImageInfo.TimestampSystem.wSecond, ImageInfo.TimestampSystem.wMilliseconds);
-    if ( (extras.header.stamp - prev).toSec() < (0.5/frame_rate_) || (extras.header.stamp - prev).toSec() > (1.5/frame_rate_) || (extras.header.stamp - prev).toSec() == 0 ) {
+    /*if ( (extras.header.stamp - prev).toSec() < (0.5/frame_rate_) || (extras.header.stamp - prev).toSec() > (1.5/frame_rate_) || (extras.header.stamp - prev).toSec() == 0 ) {
       ROS_INFO("STAMP INCONSISTENCY cur stamp: %d.%09d, prev stamp: %d.%09d", extras.header.stamp.sec, extras.header.stamp.nsec, prev.sec, prev.nsec);
-      ROS_INFO("Camera time: %02d:%02d:%02d.%09d", hh, mm, ss, ns);
-    }
+      //ROS_INFO("Camera time: %02d:%02d:%02d.%09d", hh, mm, ss, ns);
+    }*/
       
     std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
     extras.pps = !IoStatus[0];
@@ -1141,33 +1141,33 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     //ROS_INFO("Time between images %f", (stamp - prev_stamp).toSec() );
     prev = extras.header.stamp;
     
-    /*if (trigger) {
+    if (trigger) {
       if (!ppsLock) {
-        if ( !IoStatus[0] ) {
+        /*if ( !IoStatus[0] ) {
           if (pps_count_ != frame_rate_) {
             ROS_INFO("pps count %d", pps_count_);
             printCaptureStatusInformation();
           }
           pps_count_ = 0;
         }
-        pps_count_++;
+        pps_count_++;*/
           
         callback(img_mem, size, extras);
       }
       else if ( !IoStatus[0] ) {
         ppsLock = false;
-        pps_count_ = 1;
+        //pps_count_ = 1;
         callback(img_mem, size, extras);
       }
-      else
-        ROS_INFO("pps: %x", !IoStatus[0]);
+      //else
+      //  ROS_INFO("pps: %x", !IoStatus[0]);
     }
     
     else {
       //ROS_INFO("time elapsed: %f", (received - stamp).nsec/1000000.0 );
       callback(img_mem, size, extras);
-    }*/
-    callback(img_mem, size, extras);
+    }
+    //callback(img_mem, size, extras);
   }
   
   int img_seq_num = GetImageSeqNum(img_mem);
@@ -1242,8 +1242,8 @@ bool Camera::LoadExposureAndGain( ueye::extras& extras ) {
         ExposureGainList_.erase(ExposureGainList_.begin(), ExposureGainList_.begin() + best_index - 1);
       }
     }
-    else
-      ROS_INFO("serial %d, List empty", serial_number_%4103423500);
+    //else
+    //  ROS_INFO("serial %d, List empty", serial_number_%4103423500);
   }
 }
 
