@@ -308,10 +308,6 @@ void StereoNode::reconfigCam(stereoConfig &config, uint32_t level, Camera &cam)
   // Visualize brightness AOI
   if (visualize_ != config.visualize_brightness_AOI)
     visualize_ = config.visualize_brightness_AOI;
-    
-  // Publish exposure time and PPS control values
-  if (publish_extras_ != config.publish_extras)
-    publish_extras_ = config.publish_extras;
 }
 void StereoNode::reconfig(stereoConfig &config, uint32_t level)
 {
@@ -780,33 +776,11 @@ void StereoNode::BinImg(sensor_msgs::ImagePtr &msg)
 }
 
 // Timestamp and publish the image. Called by the streaming thread.
-void StereoNode::publishImageL(const char *frame, size_t size, ueye::extras& extras) //ros::Time stamp, int pps, double exposure, unsigned int gain, unsigned long long frame_count)
+void StereoNode::publishImageL(const char *frame, size_t size, ueye::extras& extras)
 {
-  //ros::Time stamp = ros::Time::now();  
-  //boost::lock_guard<boost::mutex> lock(mutex_);
+  l_pub_extras_.publish( extras );
   
-  l_stamp_ = extras.header.stamp;
-  //l_frameNo = frameNo;
-  //boost::lock_guard<boost::mutex> lock2(mutex2_);
-  
-  double diff = (l_stamp_ - r_stamp_).toSec();
-  //ROS_INFO("Camera frames, %d, %d", l_frameNo, r_frameNo);
-  //boost::lock_guard<boost::mutex> lock3(mutex3_);
-  
-  //if (left_extras_.pps != right_extras_.pps)
-  //  ROS_INFO("Camera PPS not synced!!!!! %f, %d, %d", diff, left_extras_.pps, right_extras_.pps);
-  if ((diff >= 0) && (diff < 0.003)) {
-    l_msg_camera_info_.header.stamp = r_msg_camera_info_.header.stamp;
-  } else {
-    l_msg_camera_info_.header.stamp = l_stamp_;
-  }
-  //if (l_frameNo != r_frameNo)
-    //ROS_INFO("Camera images not synced, %d, %d", l_frameNo, r_frameNo);
-  
-  if (publish_extras_) {
-    l_pub_extras_.publish( extras );
-  }
-  
+  l_msg_camera_info_.header.stamp = extras.header.stamp;
   sensor_msgs::CameraInfoPtr info;
   sensor_msgs::ImagePtr img = processFrame(frame, size, l_cam_, info, l_msg_camera_info_);
   
@@ -815,32 +789,14 @@ void StereoNode::publishImageL(const char *frame, size_t size, ueye::extras& ext
   if (visualize_)
     DrawBrightnessAOI_L(img);
 
-  // Publish Image
+  // Publish Extras and Image
   l_pub_stream_.publish(img, info);
-  //ROS_INFO("Left Camera GPIO input: %d", l_cam_.getGPIOConfiguration() );
 }
-void StereoNode::publishImageR(const char *frame, size_t size, ueye::extras& extras) // ros::Time stamp, int pps, double exposure, unsigned int gain, unsigned long long frame_count)
+void StereoNode::publishImageR(const char *frame, size_t size, ueye::extras& extras)
 {
-  //ros::Time stamp = ros::Time::now();
-      
-  //boost::lock_guard<boost::mutex> lock(mutex_);
-  r_stamp_ = extras.header.stamp;
-  //r_frameNo = frameNo;
-  //boost::lock_guard<boost::mutex> lock2(mutex2_);
+  r_pub_extras_.publish( extras );
   
-  double diff = (r_stamp_ - l_stamp_).toSec();
-  //boost::lock_guard<boost::mutex> lock3(mutex3_);
-  //ROS_INFO("right diff: %f", diff);
-  if ((diff >= 0) && (diff < 0.003)) {
-    r_msg_camera_info_.header.stamp = l_msg_camera_info_.header.stamp;
-  } else {
-    r_msg_camera_info_.header.stamp = r_stamp_;
-  }
-  
-  if (publish_extras_) {
-    r_pub_extras_.publish( extras );
-  }
-  
+  r_msg_camera_info_.header.stamp = extras.header.stamp;
   sensor_msgs::CameraInfoPtr info;
   sensor_msgs::ImagePtr img = processFrame(frame, size, r_cam_, info, r_msg_camera_info_);
   
@@ -851,206 +807,7 @@ void StereoNode::publishImageR(const char *frame, size_t size, ueye::extras& ext
   
   // Publish Image
   r_pub_stream_.publish(img, info);
-  //ROS_INFO("Right Camera GPIO input: %d", r_cam_.getGPIOConfiguration() );
 }
-
-// Timestamp and publish the image. Called by the streaming thread.
-/*void StereoNode::publishImageLfromList()
-{
-  char *frame;
-  size_t size;
-  ros::Time stamp;
-  int pps;
-  double exposure;
-  int count;
-  double maxDiff = 0;
-  ros::Time lastStamp;
-  double maxDelayDiff = 0;
-  double minDelayDiff = 1;
-  
-  while (!stop_publish_) 
-  {
-    if (l_cam_.getImageDataFromList(&frame, size, stamp, pps, exposure, count))
-    {
-      //ROS_INFO("publishImageLfromList %p", frame);
-      //ROS_INFO("Left Frame Count: %d", count);
-      //boost::lock_guard<boost::mutex> lock(mutex_);
-      
-      //boost::lock_guard<boost::mutex> lock2(mutex2_);
-      //ROS_INFO("Left enter complete");
-      {
-        boost::mutex::scoped_lock lock(mutex_);
-        l_stamp_ = stamp;
-        l_stamp_ready = true;
-        cond_l_stamp_ready.notify_one();
-        
-        //ROS_INFO("Left wait 1");
-        while ( !r_stamp_ready and !stop_publish_ ) {
-          cond_r_stamp_ready.timed_wait(lock, timeout);
-        }
-        //ROS_INFO("Left exit 1");
-        r_stamp_ready = false;
-        
-        double diff = (l_stamp_ - r_stamp_).toSec();
-        if (diff > maxDiff) {
-          maxDiff = diff;
-          ROS_INFO("%d, %d, diff: %f", count, r_frameNo, maxDiff);
-        }
-        
-        if ((diff > 0) && (diff < 0.006)) {
-          //ROS_INFO("Left wait 2");
-          while ( !r_img_info_ready and !stop_publish_ ) {
-            cond_r_img_info_ready.timed_wait(lock, timeout);
-          }
-          //ROS_INFO("Left exit 2");
-          r_img_info_ready = false;
-          l_msg_camera_info_.header.stamp = r_msg_camera_info_.header.stamp;
-        } else {
-          l_msg_camera_info_.header.stamp = l_stamp_;
-          l_img_info_ready = true;
-          cond_l_img_info_ready.notify_one();
-          if (count == 1) {
-            lastStamp = l_msg_camera_info_.header.stamp;
-          } else {
-            double delayDiff = (l_msg_camera_info_.header.stamp - lastStamp).toSec();
-            if (delayDiff > maxDelayDiff) {
-              maxDelayDiff = delayDiff;
-              ROS_INFO("maxDelay: %f", maxDelayDiff);
-            }
-            if (delayDiff < minDelayDiff) {
-              minDelayDiff = delayDiff;
-              ROS_INFO("minDelay: %f", minDelayDiff);
-            }
-            lastStamp = l_msg_camera_info_.header.stamp;
-          }
-        }
-      }
-      //ROS_INFO("Left exit complete");
-      
-      if (publish_extras_)
-      {
-        // Publish ppscontrol and exposure values
-        left_extras_.pps = pps;//l_cam_.getGPIOConfiguration();
-        leftPpsCount++;
-        if (left_extras_.pps == 1)
-        {
-          //ROS_INFO("Left Camera time, %f", l_stamp_.toSec());
-          //ROS_INFO("Right Camera time, %f", r_stamp_.toSec());
-          //ROS_INFO("Diff, %f", diff);
-          
-          if (leftPpsCount != 100)
-            ROS_INFO("Left Camera frequency: %d Hz", leftPpsCount);
-          leftPpsCount = 0;
-        }
-        left_extras_.exposure_time = l_exposure_;
-        if (auto_exposure_)
-          l_exposure_ = exposure; //l_cam_.getExposure();
-        else
-          l_exposure_ = exposure_time_;
-        
-        left_extras_.header.stamp = l_msg_camera_info_.header.stamp;
-        l_pub_extras_.publish(left_extras_);
-      }
-      
-      sensor_msgs::CameraInfoPtr info;
-      sensor_msgs::ImagePtr img = processFrame(frame, size, l_cam_, info, l_msg_camera_info_);
-      
-      if (binning_)
-        BinImg(img);
-      if (visualize_)
-        DrawBrightnessAOI_L(img);
-
-      // Publish Image
-      l_pub_stream_.publish(img, info);
-      l_cam_.removeFromList();
-    }
-    usleep(1000);
-  }
-  ROS_INFO("Left loop ended, data_ready: %d, %d", l_stamp_ready, l_img_info_ready);
-}
-void StereoNode::publishImageRfromList()
-{
-  char *frame;
-  size_t size;
-  ros::Time stamp;
-  int pps;
-  double exposure;
-  int count;
-  
-  while (!stop_publish_) {
-    if (r_cam_.getImageDataFromList(&frame, size, stamp, pps, exposure, count))
-    {
-      //ROS_INFO("Right enter complete");
-      {
-        boost::mutex::scoped_lock lock(mutex_);
-        r_frameNo = count;
-        r_stamp_ = stamp;
-        r_stamp_ready = true;
-        cond_r_stamp_ready.notify_one();
-        
-        //ROS_INFO("Right wait 1");
-        while ( !l_stamp_ready and !stop_publish_ ) {
-          cond_l_stamp_ready.timed_wait(lock, timeout);
-        }
-        //ROS_INFO("Right exit 1");
-        l_stamp_ready = false;
-        
-        double diff = (r_stamp_ - l_stamp_).toSec();
-        
-        if ((diff >= 0) && (diff < 0.006)) {
-          //ROS_INFO("Right wait 2");
-          while ( !l_img_info_ready and !stop_publish_ ) {
-            cond_l_img_info_ready.timed_wait(lock, timeout);
-          }
-          //ROS_INFO("Right exit 2");
-          l_img_info_ready = false;
-          r_msg_camera_info_.header.stamp = l_msg_camera_info_.header.stamp;
-        } else {
-          r_msg_camera_info_.header.stamp = r_stamp_;
-          r_img_info_ready = true;
-          cond_r_img_info_ready.notify_one();
-        }
-      }
-      //ROS_INFO("Right exit complete");
-      
-      if (publish_extras_)
-      {
-        // Publish ppscontrol and exposure values
-        right_extras_.pps = pps;//r_cam_.getGPIOConfiguration();
-        rightPpsCount++;
-        if (right_extras_.pps == 1)
-        {
-          //ROS_INFO("Right Camera time, %f", r_stamp_.toSec());
-          if (rightPpsCount != 100)
-            ROS_INFO("Right Camera frequency: %d Hz", rightPpsCount);
-          rightPpsCount = 0;
-        }
-        right_extras_.exposure_time = r_exposure_;
-        if (auto_exposure_)
-          r_exposure_ = exposure;
-        else
-          r_exposure_ = exposure_time_;
-           
-        right_extras_.header.stamp = r_msg_camera_info_.header.stamp;
-        r_pub_extras_.publish(right_extras_);
-      }
-      
-      sensor_msgs::CameraInfoPtr info;
-      sensor_msgs::ImagePtr img = processFrame(frame, size, r_cam_, info, r_msg_camera_info_);
-      
-      if (binning_)
-        BinImg(img);
-      if (visualize_)
-        DrawBrightnessAOI_R(img);
-      
-      // Publish Image
-      r_pub_stream_.publish(img, info);
-      r_cam_.removeFromList();
-    }
-    usleep(1000);
-  }
-  ROS_INFO("Right loop ended, data_ready: %d, %d", r_stamp_ready, r_img_info_ready);
-}*/
 
 void StereoNode::startCamera()
 {
@@ -1064,8 +821,7 @@ void StereoNode::startCamera()
   l_img_info_ready = false;
   r_stamp_ready = false;
   r_img_info_ready = false;
-  //l_thread_ = boost::thread(&StereoNode::publishImageLfromList, this);
-  //r_thread_ = boost::thread(&StereoNode::publishImageRfromList, this);
+  
   timer_force_trigger_.start();
   ROS_INFO("Started video stream.");
   running_ = true;

@@ -72,10 +72,8 @@ private:
 
   void loadIntrinsics(Camera &cam, sensor_msgs::CameraInfo &msg_info);
   sensor_msgs::ImagePtr processFrame(const char *frame, size_t size, const Camera &cam, sensor_msgs::CameraInfoPtr &info, sensor_msgs::CameraInfo &msg_info);
-  void publishImageL(const char *frame, size_t size, ueye::extras& extras); //ros::Time stamp, int pps, double exposure, unsigned int gain, unsigned long long frame_count);
-  void publishImageR(const char *frame, size_t size, ueye::extras& extras); //ros::Time stamp, int pps, double exposure, unsigned int gain, unsigned long long frame_count);
-  //void publishImageLfromList();
-  //void publishImageRfromList();
+  void publishImageL(const char *frame, size_t size, ueye::extras& extras);
+  void publishImageR(const char *frame, size_t size, ueye::extras& extras);
   void startCamera();
   void stopCamera();
   void closeCamera();
@@ -112,7 +110,6 @@ private:
   //ueye::ppscontrol pps_;
   ueye::extras left_extras_;
   ueye::extras right_extras_;
-  bool publish_extras_;
   //bool l_firstPPScontrolValueNeeded_;
   //bool r_firstPPScontrolValueNeeded_;
   double exposure_time_;

@@ -1064,6 +1064,9 @@ void Camera::captureThread(CamCaptureCB callback)
   // Lock is opened with the first PPS pulses received
   ppsLock = true;
   
+  // Offset to correct the timestamps for the camera
+  timestampOffset_ = ros::Duration(0, 0);
+  
   // Initialize thread pool service
   boost::asio::io_service ioService;
   boost::thread_group threadpool;
@@ -1115,31 +1118,56 @@ void Camera::processFrame(char *img_mem, int img_ID, size_t size, CamCaptureCB c
     ImageInfo.u64FrameNumber,
     ImageInfo.dwHostProcessTime,
     dblFPS);*/
+    
     ueye::extras extras;
+    
     if ( seconds == ImageInfo.TimestampSystem.wSecond ) { 
       extras.header.stamp = ros::Time(seconds_since_epoch.count(), ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000);
     }
     else {
       extras.header.stamp = ros::Time(seconds_since_epoch.count() - 1, ( ImageInfo.TimestampSystem.wMilliseconds ) * 1000000 );
     }
-    int ns = (ImageInfo.u64TimestampDevice % 10000000) * 100;
+    
+    std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
+    double period = 1./frame_rate_;
+    if ( (extras.header.stamp - prev).nsec > (0.002 + period) and (ImageInfo.u64FrameNumber - PrevImageInfo.u64FrameNumber) == 1 ) {
+      // One timestamp was skipped, need to increment the offset by one period
+      timestampOffset_ += ros::Duration( period );
+      PPSvalues_.insert( PPSvalues_.begin(), 0 );
+    }
+      
+    else if ( (extras.header.stamp - prev).nsec == 0 and (ImageInfo.u64FrameNumber - PrevImageInfo.u64FrameNumber) == 1 ) {
+      // Skipped timestamp was recovered, need to reduce the offset by one period
+      timestampOffset_ -= ros::Duration( period );
+      PPSvalues_.pop_back();
+    }
+    
+    PPSvalues_.insert( PPSvalues_.begin(), !IoStatus[0] );
+    
+    prev = extras.header.stamp; 
+    PrevImageInfo = ImageInfo;
+    
+    extras.header.stamp -= timestampOffset_;
+    extras.pps = PPSvalues_.back();
+    PPSvalues_.pop_back();
+    extras.frame_count = ImageInfo.u64FrameNumber;
+    extras.timestamp = ImageInfo.u64TimestampDevice;
+    
+    /*int ns = (ImageInfo.u64TimestampDevice % 10000000) * 100;
     int total_sec = ImageInfo.u64TimestampDevice / 10000000;
     int ss = total_sec % 60;
     int mm = (total_sec/60) % 60;
     int hh = (total_sec/(60*60)) % 24;
     //ROS_INFO("Camera time: %02d:%02d:%02d.%09d", hh, mm, ss, ns);
     //ROS_INFO("PC time: %02d:%02d:%02d.%03d", ImageInfo.TimestampSystem.wHour, ImageInfo.TimestampSystem.wMinute, ImageInfo.TimestampSystem.wSecond, ImageInfo.TimestampSystem.wMilliseconds);
-    /*if ( (extras.header.stamp - prev).toSec() < (0.5/frame_rate_) || (extras.header.stamp - prev).toSec() > (1.5/frame_rate_) || (extras.header.stamp - prev).toSec() == 0 ) {
+    if ( (extras.header.stamp - prev).toSec() < (0.5/frame_rate_) || (extras.header.stamp - prev).toSec() > (1.5/frame_rate_) || (extras.header.stamp - prev).toSec() == 0 ) {
       ROS_INFO("STAMP INCONSISTENCY cur stamp: %d.%09d, prev stamp: %d.%09d", extras.header.stamp.sec, extras.header.stamp.nsec, prev.sec, prev.nsec);
       //ROS_INFO("Camera time: %02d:%02d:%02d.%09d", hh, mm, ss, ns);
     }*/
       
-    std::bitset<3> IoStatus (ImageInfo.dwIoStatus);
-    extras.pps = !IoStatus[0];
-    extras.frame_count = ImageInfo.u64FrameNumber;
     LoadExposureAndGain( extras );
     //ROS_INFO("Time between images %f", (stamp - prev_stamp).toSec() );
-    prev = extras.header.stamp;
+    //prev = extras.header.stamp;
     
     if (trigger) {
       if (!ppsLock) {

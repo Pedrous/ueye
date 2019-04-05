@@ -472,10 +472,6 @@ void CameraNode::reconfig(monoConfig &config, uint32_t level)
     }
   }
   
-  // Publish exposure time and PPS control values
-  if (publish_extras_ != config.publish_extras)
-    publish_extras_ = config.publish_extras;
-  
   msg_camera_info_.header.frame_id = config.frame_id;
   configured_ = true;
   
@@ -732,12 +728,9 @@ void CameraNode::CalExp(double exposure)
 }
 
 // Timestamp and publish the image. Called by the streaming thread.
-void CameraNode::publishImage(const char *frame, size_t size, ueye::extras& extras) //ros::Time stamp, int pps, double exposure, unsigned int gain, unsigned long long frame_count)
-{  
-  if (publish_extras_)
-  {
-    pub_extras_.publish(extras);
-  }
+void CameraNode::publishImage(const char *frame, size_t size, ueye::extras& extras)
+{
+  pub_extras_.publish(extras);
   
   sensor_msgs::CameraInfoPtr info;
   sensor_msgs::ImagePtr img = processFrame(frame, size, info, msg_camera_info_);
@@ -770,57 +763,7 @@ void CameraNode::publishImage(const char *frame, size_t size, ueye::extras& extr
   }*/
 }
 
-/*void CameraNode::publishImagefromList()
-{
-  char *frame;
-  size_t size;
-  ros::Time stamp;
-  int pps;
-  double exposure;
-  int count;
-  
-  while (!stop_publish_) {
-    if (cam_.getImageDataFromList(&frame, size, stamp, pps, exposure, count))
-    {
-      
-      if (publish_extras_)
-      {
-        // Publish ppscontrol and exposure values
-        extras_.pps = pps;//r_cam_.getGPIOConfiguration();
-        PpsCount++;
-        if (extras_.pps == 1)
-        {
-          //ROS_INFO("Right Camera time, %f", r_stamp_.toSec());
-          if (PpsCount != 100)
-            ROS_INFO("Camera frequency: %d Hz", PpsCount);
-          PpsCount = 0;
-        }
-        extras_.exp_time = exposure_;
-        if (auto_exposure_)
-          exposure_ = exposure;
-        else
-          exposure_ = exposure_time_;
-           
-        extras_.header.stamp = msg_camera_info_.header.stamp;
-        pub_extras_.publish(extras_);
-      }
-      
-      sensor_msgs::CameraInfoPtr info;
-      sensor_msgs::ImagePtr img = processFrame(frame, size, cam_, info, msg_camera_info_);
-      
-      if (binning_)
-        BinImg(img);
-      if (visualize_)
-        DrawBrightnessAOI(img);
-      
-      // Publish Image
-      pub_stream_.publish(img, info);
-      cam_.removeFromList();
-    }
-    usleep(1000);
-  }
-  //ROS_INFO("Right loop ended, data_ready: %d, %d", r_stamp_ready, r_img_info_ready);
-}*/
+
 
 void CameraNode::startCamera()
 {

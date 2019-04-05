@@ -306,10 +306,12 @@ private:
   boost::mutex mutex;
   
   // Added by me for debugging
-  //UEYEIMAGEINFO PrevImageInfo;
+  UEYEIMAGEINFO PrevImageInfo;
   ros::Time prev_stamp;
   ros::Time prev_trigger;
   ros::Time prev;
+  ros::Duration timestampOffset_;
+  std::vector<int> PPSvalues_;
   bool ppsLock;
   boost::circular_buffer<double> fps_{11};
   double fps_dependent_limit_;
