@@ -16,7 +16,10 @@ set(${PROJECT_NAME}_CATKIN_DEPS
   rosbag
 )
 
-find_package(catkin REQUIRED COMPONENTS ${${PROJECT_NAME}_CATKIN_DEPS})
+find_package(catkin REQUIRED COMPONENTS 
+  ${${PROJECT_NAME}_CATKIN_DEPS}
+  message_generation
+)
 
 set(${PROJECT_NAME}_INCLUDE_EXPORTS
   include
@@ -117,7 +120,7 @@ add_library(ueye_nodelets
   src/stereo_nodelet.cpp src/StereoNode.cpp
   src/framerate_nodelet.cpp src/FramerateNode.cpp
 )
-add_dependencies(ueye_nodelets ${PROJECT_NAME}_gencfg)
+add_dependencies(ueye_nodelets ${PROJECT_NAME}_gencfg ${PROJECT_NAME}_generate_messages_cpp)
 target_link_libraries(ueye_nodelets
   ${catkin_LIBRARIES}
   ueye_api
